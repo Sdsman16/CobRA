@@ -1,6 +1,7 @@
 import json
 import os
 import click
+import uuid
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves
 from cobra.vuln_checker import (
@@ -28,6 +29,9 @@ def scan(path, output, format):
     if not cves:
         click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
+    # Load ignored UIDs
+    ignored_uids = load_ignored_uids()
+
     # Collect CVE results
     click.echo("[Debug] Starting scan_directory")
     try:
@@ -54,7 +58,10 @@ def scan(path, output, format):
 
     # Combine results
     results.extend(vulnerability_results)
-    click.echo(f"[Info] Total findings: {len(results)}")
+
+    # Filter out ignored findings
+    results = [r for r in results if r["uid"] not in ignored_uids]
+    click.echo(f"[Info] Total findings after ignoring {len(ignored_uids)}: {len(results)}")
 
     # Debug: Print results to verify contents
     click.echo("[Debug] Results before export:")
@@ -80,9 +87,39 @@ def update_cve_db():
     click.echo("CVE database updated.")
 
 
+@cli.command()
+@click.argument("uid")
+def ignore(uid):
+    """Add a finding UID to the ignore list."""
+    ignored_uids = load_ignored_uids()
+    if uid not in ignored_uids:
+        ignored_uids.append(uid)
+        try:
+            with open("ignore.json", "w") as f:
+                json.dump({"ignored_uids": ignored_uids}, f, indent=4)
+            click.echo(f"[Success] UID {uid} added to ignore list.")
+        except IOError as e:
+            click.echo(f"[Error] Failed to update ignore.json: {str(e)}")
+    else:
+        click.echo(f"[Info] UID {uid} is already in the ignore list.")
+
+
+def load_ignored_uids():
+    """Load the list of ignored UIDs from ignore.json."""
+    try:
+        if os.path.exists("ignore.json"):
+            with open("ignore.json", "r") as f:
+                data = json.load(f)
+                return data.get("ignored_uids", [])
+        return []
+    except (IOError, json.JSONDecodeError) as e:
+        click.echo(f"[Warning] Failed to load ignore.json: {str(e)}")
+        return []
+
+
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
-    findings = []  # Collect structured vulnerability results
+    findings = []
 
     def analyze_file(file_path):
         filename = os.path.basename(file_path)
@@ -99,9 +136,10 @@ def scan_vulnerabilities(path):
                 findings.append({
                     "file": file_path,
                     "vulnerability": "Unvalidated Input",
-                    "details": f"Use of ACCEPT statement (unvalidated input) at line {i}",
+                    "message": f"Use of ACCEPT statement (unvalidated input) at line {i}",
                     "severity": "Medium",
-                    "line": i
+                    "line": i,
+                    "uid": str(uuid.uuid4())
                 })
                 click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
 
@@ -111,8 +149,10 @@ def scan_vulnerabilities(path):
             findings.append({
                 "file": file_path,
                 "vulnerability": "XSS",
-                "details": issue,
-                "severity": "Medium"
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,  # Unknown line, adjust if line info is available
+                "uid": str(uuid.uuid4())
             })
             click.echo(f"XSS vulnerability found in {filename}: {issue}")
 
@@ -122,8 +162,10 @@ def scan_vulnerabilities(path):
             findings.append({
                 "file": file_path,
                 "vulnerability": "SQL Injection",
-                "details": issue,
-                "severity": "High"
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": str(uuid.uuid4())
             })
             click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
 
@@ -133,8 +175,10 @@ def scan_vulnerabilities(path):
             findings.append({
                 "file": file_path,
                 "vulnerability": "Command Injection",
-                "details": issue,
-                "severity": "High"
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": str(uuid.uuid4())
             })
             click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
 
@@ -144,8 +188,10 @@ def scan_vulnerabilities(path):
             findings.append({
                 "file": file_path,
                 "vulnerability": "Insecure Cryptographic Storage",
-                "details": issue,
-                "severity": "Medium"
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,
+                "uid": str(uuid.uuid4())
             })
             click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
 
@@ -155,8 +201,10 @@ def scan_vulnerabilities(path):
             findings.append({
                 "file": file_path,
                 "vulnerability": "CSRF",
-                "details": issue,
-                "severity": "Medium"
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,
+                "uid": str(uuid.uuid4())
             })
             click.echo(f"CSRF vulnerability found in {filename}: {issue}")
 
@@ -203,9 +251,10 @@ def export_results(results, output, format):
                     }
                 },
                 "results": [{
+                    "ruleId": result.get("vulnerability", "Unknown"),
                     "level": result.get("severity", "warning").lower(),
                     "message": {
-                        "text": f"{result.get('vulnerability', 'Unknown')}: {result.get('details', 'No details')}"
+                        "text": result.get("message", "No details")
                     },
                     "locations": [{
                         "physicalLocation": {
@@ -216,7 +265,10 @@ def export_results(results, output, format):
                                 "startLine": result.get("line", 1)
                             }
                         }
-                    }]
+                    }],
+                    "properties": {
+                        "uid": result.get("uid", "unknown")
+                    }
                 } for result in results]
             }]
         }

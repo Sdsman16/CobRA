@@ -1,5 +1,6 @@
 import os
 import logging
+import uuid
 from cobra.rules import run_rules
 from cobra.utils import is_cobol_file
 from rich.console import Console
@@ -32,6 +33,9 @@ def scan_directory(path, cves):
                 with open(path, "r", errors="ignore") as f:
                     code = f.read()
                 findings = run_rules(code, path, cves)
+                # Add UID to each finding
+                for finding in findings:
+                    finding["uid"] = str(uuid.uuid4())
                 results.extend(findings)
                 logging.debug(f"Found {len(findings)} issues in file: {path}")
             except Exception as e:
@@ -40,7 +44,7 @@ def scan_directory(path, cves):
         else:
             console.print(f"[red]Error: {path} is not a valid COBOL file![/red]")
             logging.warning(f"Invalid COBOL file: {path}")
-            return results  # Return results instead of None
+            return results
 
     # Handle directory input
     elif os.path.isdir(path):
@@ -52,6 +56,9 @@ def scan_directory(path, cves):
                         with open(full_path, "r", errors="ignore") as f:
                             code = f.read()
                         findings = run_rules(code, full_path, cves)
+                        # Add UID to each finding
+                        for finding in findings:
+                            finding["uid"] = str(uuid.uuid4())
                         results.extend(findings)
                         logging.debug(f"Found {len(findings)} issues in file: {full_path}")
                     except Exception as e:
@@ -62,7 +69,10 @@ def scan_directory(path, cves):
     else:
         console.print(f"[red]Error: {path} is neither a valid file nor a directory![/red]")
         logging.warning(f"Invalid path: {path}")
-        return results  # Return results instead of None
+        return results
+
+    # Deduplicate findings
+    results = deduplicate_findings(results)
 
     # Output results
     if not results:
@@ -72,11 +82,8 @@ def scan_directory(path, cves):
         console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
         for finding in results:
             console.print(
-                f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']}"
+                f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding messaggio: [cyan](UID: {finding['uid']})[/cyan]"
             )
         logging.debug(f"Total issues found: {len(results)}")
 
-    # Deduplicate findings
-    results = deduplicate_findings(results)
-    logging.debug(f"After deduplication, total issues: {len(results)}")
     return results
