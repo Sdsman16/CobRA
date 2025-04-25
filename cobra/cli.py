@@ -29,6 +29,7 @@ def scan(path, output, format):
         click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
     # Collect CVE results
+    click.echo("[Debug] Starting scan_directory")
     try:
         results = scan_directory(path, cves)
         if results is None:
@@ -36,13 +37,20 @@ def scan(path, output, format):
             results = []
         else:
             click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+            click.echo("[Debug] CVE results:")
+            for result in results:
+                click.echo(result)
     except Exception as e:
         click.echo(f"[Error] Failed to scan directory: {str(e)}")
         results = []
 
     # Collect vulnerability results
+    click.echo("[Debug] Starting scan_vulnerabilities")
     vulnerability_results = scan_vulnerabilities(path)
     click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
+    click.echo("[Debug] Vulnerability results:")
+    for result in vulnerability_results:
+        click.echo(result)
 
     # Combine results
     results.extend(vulnerability_results)
