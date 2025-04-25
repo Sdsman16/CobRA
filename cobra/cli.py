@@ -25,7 +25,11 @@ def scan(path, output, format):
 
     # Collect results
     results = scan_directory(path, cves)
-    results += scan_vulnerabilities(path)
+    vulnerability_results = scan_vulnerabilities(path)
+
+    # If there are vulnerabilities, add them to the results
+    if vulnerability_results:
+        results += vulnerability_results
 
     # Check if output file exists and warn user
     if output:
@@ -49,6 +53,7 @@ def update_cve_db():
 
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
+    findings = []  # This will collect the vulnerability results
 
     def analyze_file(file_path):
         filename = os.path.basename(file_path)
@@ -58,37 +63,37 @@ def scan_vulnerabilities(path):
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(cobol_code)
         if xss_issues:
-            print(f"[{filename}] Potential XSS Vulnerabilities:")
+            findings.append(f"[{filename}] Potential XSS Vulnerabilities:")
             for issue in xss_issues:
-                print(f"- {issue}")
+                findings.append(f"- {issue}")
 
         # Check for SQL Injection vulnerabilities
         sql_issues = check_for_sql_injection(cobol_code)
         if sql_issues:
-            print(f"[{filename}] Potential SQL Injection Vulnerabilities:")
+            findings.append(f"[{filename}] Potential SQL Injection Vulnerabilities:")
             for issue in sql_issues:
-                print(f"- {issue}")
+                findings.append(f"- {issue}")
 
         # Check for Command Injection vulnerabilities
         command_issues = check_for_command_injection(cobol_code)
         if command_issues:
-            print(f"[{filename}] Potential Command Injection Vulnerabilities:")
+            findings.append(f"[{filename}] Potential Command Injection Vulnerabilities:")
             for issue in command_issues:
-                print(f"- {issue}")
+                findings.append(f"- {issue}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
         cryptographic_issues = check_for_insecure_cryptographic_storage(cobol_code)
         if cryptographic_issues:
-            print(f"[{filename}] Potential Insecure Cryptographic Storage Issues:")
+            findings.append(f"[{filename}] Potential Insecure Cryptographic Storage Issues:")
             for issue in cryptographic_issues:
-                print(f"- {issue}")
+                findings.append(f"- {issue}")
 
         # Check for CSRF vulnerabilities
         csrf_issues = check_for_csrf(cobol_code)
         if csrf_issues:
-            print(f"[{filename}] Potential CSRF Vulnerabilities:")
+            findings.append(f"[{filename}] Potential CSRF Vulnerabilities:")
             for issue in csrf_issues:
-                print(f"- {issue}")
+                findings.append(f"- {issue}")
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -103,3 +108,5 @@ def scan_vulnerabilities(path):
             print(f"[Error] {path} is not a .cbl file.")
     else:
         print(f"[Error] {path} is not a valid file or directory.")
+
+    return findings  # Return the collected findings
