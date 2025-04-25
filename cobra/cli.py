@@ -30,6 +30,9 @@ def scan(path, output, format):
     # If there are vulnerabilities, add them to the results
     if vulnerability_results:
         results += vulnerability_results
+        click.echo(f"[Info] Found vulnerabilities: {len(vulnerability_results)}")
+    else:
+        click.echo("[Info] No vulnerabilities found.")
 
     # Check if output file exists and warn user
     if output:
@@ -66,6 +69,7 @@ def scan_vulnerabilities(path):
             findings.append(f"[{filename}] Potential XSS Vulnerabilities:")
             for issue in xss_issues:
                 findings.append(f"- {issue}")
+            click.echo(f"XSS vulnerabilities found in {filename}: {xss_issues}")
 
         # Check for SQL Injection vulnerabilities
         sql_issues = check_for_sql_injection(cobol_code)
@@ -73,6 +77,7 @@ def scan_vulnerabilities(path):
             findings.append(f"[{filename}] Potential SQL Injection Vulnerabilities:")
             for issue in sql_issues:
                 findings.append(f"- {issue}")
+            click.echo(f"SQL Injection vulnerabilities found in {filename}: {sql_issues}")
 
         # Check for Command Injection vulnerabilities
         command_issues = check_for_command_injection(cobol_code)
@@ -80,6 +85,7 @@ def scan_vulnerabilities(path):
             findings.append(f"[{filename}] Potential Command Injection Vulnerabilities:")
             for issue in command_issues:
                 findings.append(f"- {issue}")
+            click.echo(f"Command Injection vulnerabilities found in {filename}: {command_issues}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
         cryptographic_issues = check_for_insecure_cryptographic_storage(cobol_code)
@@ -87,6 +93,7 @@ def scan_vulnerabilities(path):
             findings.append(f"[{filename}] Potential Insecure Cryptographic Storage Issues:")
             for issue in cryptographic_issues:
                 findings.append(f"- {issue}")
+            click.echo(f"Insecure Cryptographic Storage issues found in {filename}: {cryptographic_issues}")
 
         # Check for CSRF vulnerabilities
         csrf_issues = check_for_csrf(cobol_code)
@@ -94,6 +101,7 @@ def scan_vulnerabilities(path):
             findings.append(f"[{filename}] Potential CSRF Vulnerabilities:")
             for issue in csrf_issues:
                 findings.append(f"- {issue}")
+            click.echo(f"CSRF vulnerabilities found in {filename}: {csrf_issues}")
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -105,8 +113,14 @@ def scan_vulnerabilities(path):
         if path.endswith(".cbl"):
             analyze_file(path)
         else:
-            print(f"[Error] {path} is not a .cbl file.")
+            click.echo(f"[Error] {path} is not a .cbl file.")
     else:
-        print(f"[Error] {path} is not a valid file or directory.")
+        click.echo(f"[Error] {path} is not a valid file or directory.")
 
-    return findings  # Return the collected findings
+    # Return the collected findings
+    if findings:
+        click.echo(f"[Info] Collected {len(findings)} findings.")
+    else:
+        click.echo("[Info] No vulnerabilities found.")
+
+    return findings
