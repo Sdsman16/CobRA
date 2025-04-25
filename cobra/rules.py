@@ -74,19 +74,19 @@ def run_rules(code, filename, cves):
     cve_patterns = [
         {
             "id": "CVE-2019-14468",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.|PERFORM\s+[A-Z0-9-]+|DATA\s+DIVISION\.)",
             "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
             "severity": "High"
         },
         {
             "id": "CVE-2019-16395",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.|PERFORM\s+[A-Z0-9-]+|DATA\s+DIVISION\.)",
             "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
             "severity": "High"
         },
         {
             "id": "CVE-2023-4501",
-            "pattern": r"ACCEPT\s+[A-Z0-9-]+.*(USERNAME|PASSWORD)",
+            "pattern": r"(ACCEPT\s+[A-Z0-9-]+.*(USERNAME|PASSWORD)|USER-ID|PASSWORD)",
             "message": "Keyword match for CVE-2023-4501: Ineffective authentication in OpenText (Micro Focus) Visual COBOL.",
             "severity": "High"
         }
@@ -112,7 +112,7 @@ def run_rules(code, filename, cves):
     for cve in cves:
         for keyword in cve.get("keywords", []):
             for i, line in enumerate(lines, 1):
-                if keyword.lower() in line.lower():
+                if re.search(r'\b' + re.escape(keyword) + r'\b', line, re.IGNORECASE):
                     findings.append({
                         "file": filename,
                         "line": i,

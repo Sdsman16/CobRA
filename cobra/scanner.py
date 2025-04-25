@@ -11,11 +11,11 @@ logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime
 console = Console()
 
 def deduplicate_findings(findings):
-    """Remove duplicate findings based on file, message, and line."""
+    """Remove duplicate findings based on file, message, line, and vulnerability."""
     seen = set()
     unique_findings = []
     for f in findings:
-        key = (f["file"], f["message"], f["line"])
+        key = (f["file"], f["message"], f["line"], f["vulnerability"])
         if key not in seen:
             seen.add(key)
             unique_findings.append(f)
