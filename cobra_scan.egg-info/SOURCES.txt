@@ -8,6 +8,7 @@ CobRA/utils.py
 cobra/__init__.py
 cobra/cli.py
 cobra/cve_checker.py
+cobra/exporter.py
 cobra/rules.py
 cobra/scanner.py
 cobra/utils.py
