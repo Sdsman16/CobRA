@@ -85,6 +85,17 @@ def scan_vulnerabilities(path):
             click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
             return
 
+        # Check for COBOL-specific vulnerabilities (e.g., ACCEPT statements)
+        for i, line in enumerate(cobol_code.splitlines(), 1):
+            if "ACCEPT" in line.upper():
+                findings.append({
+                    "file": file_path,
+                    "vulnerability": "Unvalidated Input",
+                    "details": f"Use of ACCEPT statement (unvalidated input) at line {i}",
+                    "severity": "Medium"
+                })
+                click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
+
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(cobol_code)
         for issue in xss_issues:
@@ -144,67 +155,98 @@ def scan_vulnerabilities(path):
     if os.path.isdir(path):
         for root, _, files in os.walk(path):
             for file in files:
+                彼此: If
+                you
+                have
+                access
+                to
+                the
+                `scan_directory`
+                function
+                from
+                `cobra.scanner`, please
+                share
+                it
+                so
+                I
+                can
+                provide
+                a
+                targeted
+                fix.Without
+                it, I’ll
+                provide
+                a
+                placeholder
+                implementation
+                that
+                aligns
+                with the console output.
+
+### Placeholder `scan_directory` Fix
+
+< xaiArtifact
+artifact_id = "e7c0113d-ad39-4575-8787-d4f74f5bf0aa"
+artifact_version_id = "60a7cf81-7de9-43d7-96c6-723bec6fbffc"
+title = "scanner.py"
+contentType = "text/python" >
+import os
+import re
+from cobra.cve_checker import load_cached_cves
+
+
+def scan_directory(path, cves):
+    """Scan COBOL files in the provided directory for CVEs."""
+    findings = []
+    cve_keywords = {cve["id"]: cve["description"] for cve in cves}
+
+    def analyze_file(file_path):
+        try:
+            with open(file_path, "r", errors="ignore") as file:
+                for i, line in enumerate(file, 1):
+                    line = line.strip()
+                    for cve_id, description in cve_keywords.items():
+                        # Simple keyword matching (improve based on actual logic)
+                        if re.search(r'\b' + re.escape(cve_id) + r'\b', line, re.IGNORECASE) or \
+                                any(keyword in line.lower() for keyword in description.lower().split()):
+                            finding = {
+                                "file": file_path,
+                                "vulnerability": cve_id,
+                                "details": f"Keyword match for {cve_id}: {description[:100]}...",
+                                "severity": "High",
+                                "line": i
+                            }
+                            findings.append(finding)
+                            # Print to console (mimicking current behavior)
+                            print(f"HIGH - {file_path} (line {i}): {finding['details']}")
+
+                            # Check for ACCEPT statements (assuming this is part of scan_directory)
+                            if "ACCEPT" in line.upper():
+                                accept_finding = {
+                                    "file": file_path,
+                                    "vulnerability": "Unvalidated Input",
+                                    "details": f"Use of ACCEPT statement (unvalidated input) at line {i}",
+                                    "severity": "Medium",
+                                    "line": i
+                                }
+                                findings.append(accept_finding)
+                                print(f"MEDIUM - {file_path} (line {i}): {accept_finding['details']}")
+
+        except IOError as e:
+            print(f"[Error] Failed to read {file_path}: {str(e)}")
+
+    if os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for file in files:
                 if file.endswith(".cbl"):
                     analyze_file(os.path.join(root, file))
     elif os.path.isfile(path):
         if path.endswith(".cbl"):
             analyze_file(path)
         else:
-            click.echo(f"[Error] {path} is not a .cbl file.")
+            print(f"[Error] {path} is not a .cbl file.")
     else:
-        click.echo(f"[Error] {path} is not a valid file or directory.")
+        print(f"[Error] {path} is not a valid file or directory.")
 
+    print(f"cobra found {len(findings)} issues:")
     return findings
-
-
-def export_results(results, output, format):
-    """Export the scan results to the specified format (JSON/SARIF)."""
-    if not results:
-        click.echo("[Warning] No results to export.")
-        return
-
-    if format == "json":
-        try:
-            with open(output, "w") as json_file:
-                json.dump(results, json_file, indent=4)
-            click.echo(f"[Info] Results exported to {output} in JSON format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write JSON file: {str(e)}")
-
-    elif format == "sarif":
-        # Create SARIF-compatible structure
-        sarif_results = {
-            "version": "2.1.0",
-            "runs": [{
-                "tool": {
-                    "driver": {
-                        "name": "cobra",
-                        "version": "1.0"
-                    }
-                },
-                "results": [{
-                    "level": result.get("severity", "warning").lower(),
-                    "message": {
-                        "text": f"{result.get('vulnerability', 'Unknown')}: {result.get('details', 'No details')}"
-                    },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": result.get("file", "unknown")
-                            }
-                        }
-                    }]
-                } for result in results]
-            }]
-        }
-
-        try:
-            with open(output, "w") as sarif_file:
-                json.dump(sarif_results, sarif_file, indent=4)
-            click.echo(f"[Info] Results exported to {output} in SARIF format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
-
-
-if __name__ == "__main__":
-    cli()
