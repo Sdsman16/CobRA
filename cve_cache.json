@@ -1,36 +1,75 @@
 {
-    "last_updated": 1745595023,
+    "last_updated": 1745596380,
     "cves": [
         {
-            "id": "CVE-2019-14468",
+            "id": "CVE-2019-14486",
             "keywords": [
                 "buffer overflow",
                 "gnucobol",
-                "cobc/field.c"
+                "cobc/field.c",
+                "cobol"
             ],
-            "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
+            "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code.",
             "cvss_score": 7.5
         },
         {
-            "id": "CVE-2019-16395",
+            "id": "CVE-2019-14528",
             "keywords": [
-                "stack-based buffer overflow",
+                "buffer overflow",
                 "gnucobol",
-                "cobc/tree.c"
+                "scanner.l",
+                "cobol"
             ],
-            "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in the cb_name() function in cobc/tree.c via crafted COBOL source code.",
-            "cvss_score": 7.8
+            "summary": "GnuCOBOL 2.2 has a heap-based buffer overflow in read_literal in cobc/scanner.l via crafted COBOL source code.",
+            "cvss_score": 7.5
         },
         {
-            "id": "CVE-2023-4501",
+            "id": "CVE-2019-14541",
             "keywords": [
-                "authentication",
-                "visual cobol",
-                "username",
-                "password"
+                "buffer overflow",
+                "gnucobol",
+                "typeck.c",
+                "cobol"
             ],
-            "summary": "User authentication with username and password credentials is ineffective in OpenText (Micro Focus) Visual COBOL.",
+            "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in cb_encode_program_id in cobc/typeck.c via crafted COBOL source code.",
+            "cvss_score": 7.5
+        },
+        {
+            "id": "CVE-2012-0918",
+            "keywords": [
+                "cobol",
+                "hitachi"
+            ],
+            "summary": "Unspecified vulnerability in Hitachi COBOL2002 Net Developer, Net Server Suite, and Net Client Suite.",
+            "cvss_score": 5.0
+        },
+        {
+            "id": "CVE-2012-4274",
+            "keywords": [
+                "cobol",
+                "hitachi"
+            ],
+            "summary": "Unspecified vulnerability in Hitachi Cobol GUI Option.",
+            "cvss_score": 5.0
+        },
+        {
+            "id": "CVE-2023-32265",
+            "keywords": [
+                "cobol",
+                "micro focus",
+                "escwa"
+            ],
+            "summary": "A potential security vulnerability in the Enterprise Server Common Web Administration (ESCWA) component.",
             "cvss_score": 6.5
+        },
+        {
+            "id": "CVE-2001-0208",
+            "keywords": [
+                "cobol",
+                "microfocus"
+            ],
+            "summary": "MicroFocus Cobol 4.1 with AppTrack feature installs mfaslmf directory with insecure permissions.",
+            "cvss_score": 4.6
         }
     ]
 }
