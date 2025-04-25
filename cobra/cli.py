@@ -24,13 +24,13 @@ def cli():
 @click.option("--output", type=click.Path(), help="Path to save results.")
 @click.option("--format", type=click.Choice(["json", "sarif"]), help="Export format.")
 @click.option("--line-tolerance", type=int, default=10, help="Line number tolerance for matching ignored findings.")
-@click.option("--quiet", is_flag=True, help="Suppress console output during scan.")
-def scan(path, output, format, line_tolerance, quiet):
+@click.option("--quiet", is_flag=True, help="Suppress all non-critical console output during scan.")
+@click.option("--verbose", is_flag=True, help="Show detailed debug logs of findings.")
+def scan(path, output, format, line_tolerance, quiet, verbose):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     cves = load_cached_cves()
-    if not quiet:
-        if not cves:
-            click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
+    if not quiet and not cves:
+        click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
     # Load ignored findings
     ignored_findings = load_ignored_uids()
@@ -49,6 +49,8 @@ def scan(path, output, format, line_tolerance, quiet):
         else:
             if not quiet:
                 click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+            # Only print detailed findings if verbose and not exporting
+            if verbose and not output:
                 click.echo("[Debug] CVE results:")
                 for result in results:
                     click.echo(result)
@@ -63,6 +65,7 @@ def scan(path, output, format, line_tolerance, quiet):
     vulnerability_results = scan_vulnerabilities(path, quiet=quiet)
     if not quiet:
         click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
+    if verbose and not output:
         click.echo("[Debug] Vulnerability results:")
         for result in vulnerability_results:
             click.echo(result)
@@ -92,6 +95,7 @@ def scan(path, output, format, line_tolerance, quiet):
 
     if not quiet:
         click.echo(f"[Info] Total findings after ignoring: {len(results)}")
+    if verbose and not output:
         click.echo("[Debug] Results before export:")
         for result in results:
             click.echo(result)

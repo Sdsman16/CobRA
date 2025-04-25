@@ -40,8 +40,8 @@ def scan_directory(path, cves, quiet=False):
                 start_line = max(0, line_number - 2)  # 1-based to 0-based
                 end_line = min(len(lines), line_number + 1)
                 code_snippet = "".join(lines[start_line:end_line]).strip()
-                # Handle missing keys
-                vulnerability = finding.get("vulnerability", finding.get("id", "Unknown"))
+                # Handle missing keys, prioritize 'id' for CVEs
+                vulnerability = finding.get("id", finding.get("vulnerability", "Unknown"))
                 finding["vulnerability"] = vulnerability
                 finding["message"] = finding.get("message", finding.get("description", "No description"))
                 finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
