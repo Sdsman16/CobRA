@@ -1,9 +1,9 @@
 import json
 import os
 import click
-import uuid
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves
+from cobra.utils import generate_uid
 from cobra.vuln_checker import (
     check_for_xss,
     check_for_sql_injection,
@@ -149,9 +149,7 @@ def ignore_list(prune):
         )
 
     if prune:
-        # Pruning requires a scan to identify unmatched UIDs; for simplicity, warn user
         click.echo("[Warning] Pruning requires a scan to identify unmatched findings. Run 'cobra scan' to detect outdated ignores.")
-        # Placeholder for pruning logic (can be enhanced with scan integration)
 
 
 def load_ignored_uids():
@@ -199,7 +197,7 @@ def scan_vulnerabilities(path):
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(code)
         for issue in xss_issues:
-            code_snippet = "N/A"  # Adjust if line info is available
+            code_snippet = "N/A"
             findings.append({
                 "file": file_path,
                 "vulnerability": "XSS",
@@ -278,7 +276,7 @@ def scan_vulnerabilities(path):
                 if file.endswith(".cbl"):
                     analyze_file(os.path.join(root, file))
     elif os.path.isfile(path):
-        if path.endswith(".cbl"):
+        if file.endswith(".cbl"):
             analyze_file(path)
         else:
             click.echo(f"[Error] {path} is not a .cbl file.")

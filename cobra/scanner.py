@@ -1,23 +1,13 @@
 import os
 import logging
-import hashlib
 from cobra.rules import run_rules
-from cobra.utils import is_cobol_file
+from cobra.utils import is_cobol_file, generate_uid
 from rich.console import Console
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
 
 console = Console()
-
-def generate_uid(file_path, vulnerability, line_number, code_snippet):
-    """Generate a deterministic UID based on file, vulnerability, and code snippet."""
-    # Use relative path to handle directory moves
-    relative_path = os.path.relpath(file_path, os.getcwd())
-    # Combine attributes into a stable string
-    uid_string = f"{relative_path}:{vulnerability}:{line_number}:{code_snippet}"
-    # Generate SHA-256 hash
-    return hashlib.sha256(uid_string.encode()).hexdigest()
 
 def deduplicate_findings(findings):
     """Remove duplicate findings based on file, message, and line."""
