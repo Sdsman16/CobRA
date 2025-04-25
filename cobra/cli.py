@@ -1,3 +1,4 @@
+import json
 import os
 import click
 from cobra.scanner import scan_directory
@@ -10,10 +11,12 @@ from cobra.vuln_checker import (
     check_for_csrf
 )
 
+
 @click.group()
 def cli():
     """cobra - COBOL Risk Analyzer"""
     pass
+
 
 @cli.command()
 @click.argument("path")
@@ -50,11 +53,13 @@ def scan(path, output, format):
         # Inform the user that the file has been saved and where
         click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
 
+
 @cli.command()
 def update_cve_db():
     """Update the local CVE cache."""
     fetch_cves()
     click.echo("CVE database updated.")
+
 
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
@@ -126,6 +131,50 @@ def scan_vulnerabilities(path):
         click.echo("[Info] No vulnerabilities found.")
 
     return findings
+
+
+def export_results(results, output, format):
+    """Export the scan results to the specified format (JSON/SARIF)."""
+    if format == "json":
+        with open(output, "w") as json_file:
+            json.dump(results, json_file, indent=4)
+        click.echo(f"[Info] Results exported to {output} in JSON format.")
+
+    elif format == "sarif":
+        # For SARIF, create a SARIF-compatible structure
+        sarif_results = {
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": "cobra",
+                        "version": "1.0"
+                    }
+                },
+                "results": [{
+                    "ruleId": "CVE-XXXX-XXXX",  # Replace with actual CVE ID if needed
+                    "message": {
+                        "text": result
+                    },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": "file://" + result
+                            },
+                            "region": {
+                                "startLine": 1  # Just an example, modify accordingly
+                            }
+                        }
+                    }]
+                } for result in results]
+            }]
+        }
+
+        # Write SARIF output
+        with open(output, "w") as sarif_file:
+            json.dump(sarif_results, sarif_file, indent=4)
+        click.echo(f"[Info] Results exported to {output} in SARIF format.")
+
 
 if __name__ == "__main__":
     cli()
