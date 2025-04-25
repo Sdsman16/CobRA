@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 from cobra.rules import run_rules
 from cobra.utils import is_cobol_file, generate_uid
 from rich.console import Console
@@ -40,12 +41,19 @@ def scan_directory(path, cves, quiet=False):
                 start_line = max(0, line_number - 2)  # 1-based to 0-based
                 end_line = min(len(lines), line_number + 1)
                 code_snippet = "".join(lines[start_line:end_line]).strip()
-                # Handle missing keys, prioritize 'id' for CVEs
-                vulnerability = finding.get("id", finding.get("vulnerability", "Unknown"))
+                # Handle missing keys, prioritize 'vulnerability' or 'id'
+                vulnerability = finding.get("vulnerability", finding.get("id"))
+                if not vulnerability:
+                    # Extract CVE ID from message (e.g., "Keyword match for CVE-2019-14468: ...")
+                    message = finding.get("message", "")
+                    cve_match = re.search(r"CVE-\d{4}-\d{4,}", message)
+                    vulnerability = cve_match.group(0) if cve_match else "Unknown"
                 finding["vulnerability"] = vulnerability
-                finding["message"] = finding.get("message", finding.get("description", "No description"))
+                finding["message"] = finding.get("message", "No description")
+                finding["severity"] = finding.get("severity", "Medium").capitalize()
                 finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
                 finding["code_snippet"] = code_snippet
+                finding["cvss_score"] = finding.get("cvss_score", 0.0)
                 results.append(finding)
             logging.debug(f"Found {len(findings)} issues in file: {file_path}")
         except Exception as e:
@@ -89,7 +97,7 @@ def scan_directory(path, cves, quiet=False):
             console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
             for finding in results:
                 console.print(
-                    f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}...)[/cyan]"
+                    f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
                 )
     logging.debug(f"Total issues found: {len(results)}")
 

@@ -4,7 +4,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
 
-
 def run_rules(code, filename, cves):
     """
     Apply rules to detect CVEs and vulnerabilities in COBOL code.
@@ -19,6 +18,9 @@ def run_rules(code, filename, cves):
     """
     findings = []
     lines = code.splitlines()
+
+    # Log cves structure for debugging
+    logging.debug(f"cves structure: {cves[:2]}")  # Log first two for brevity
 
     # COBOL-specific vulnerability patterns
     vuln_patterns = [
@@ -65,18 +67,19 @@ def run_rules(code, filename, cves):
                     "severity": pattern["severity"],
                     "vulnerability": pattern["vulnerability"]
                 })
+                logging.debug(f"Found {pattern['vulnerability']} at {filename}:{i}")
 
     # CVE-specific patterns for precise matching
     cve_patterns = [
         {
             "id": "CVE-2019-14468",
-            "pattern": r"PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+)",
             "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
             "severity": "High"
         },
         {
             "id": "CVE-2019-16395",
-            "pattern": r"PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+)",
             "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
             "severity": "High"
         },
@@ -102,6 +105,7 @@ def run_rules(code, filename, cves):
                     "vulnerability": pattern["id"],
                     "cvss_score": cve_data.get("cvss_score", 0.0)
                 })
+                logging.debug(f"Found CVE {pattern['id']} at {filename}:{i}")
 
     # Fallback: Scan for CVEs using keywords from cves list
     for cve in cves:
@@ -116,6 +120,7 @@ def run_rules(code, filename, cves):
                         "vulnerability": cve["id"],
                         "cvss_score": cve.get("cvss_score", 0.0)
                     })
+                    logging.debug(f"Found CVE {cve['id']} via keyword '{keyword}' at {filename}:{i}")
 
     logging.debug(f"run_rules found {len(findings)} issues in {filename}")
     return findings

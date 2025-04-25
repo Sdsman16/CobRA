@@ -12,12 +12,10 @@ from cobra.vuln_checker import (
     check_for_csrf
 )
 
-
 @click.group()
 def cli():
     """cobra - COBOL Risk Analyzer"""
     pass
-
 
 @cli.command()
 @click.argument("path")
@@ -117,13 +115,11 @@ def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
         if not quiet:
             click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
 
-
 @cli.command()
 def update_cve_db():
     """Update the local CVE cache."""
     fetch_cves()
     click.echo("CVE database updated.")
-
 
 @cli.command()
 @click.argument("uid")
@@ -150,7 +146,6 @@ def ignore(uid, file, vulnerability, line, code_snippet):
     else:
         click.echo(f"[Info] UID {uid} is already in the ignore list.")
 
-
 @cli.command()
 @click.option("--prune", is_flag=True, help="Remove unmatched ignored findings.")
 def ignore_list(prune):
@@ -170,19 +165,26 @@ def ignore_list(prune):
     if prune:
         click.echo("[Warning] Pruning requires a scan to identify unmatched findings. Run 'cobra scan' to detect outdated ignores.")
 
-
 def load_ignored_uids():
     """Load the dictionary of ignored findings from ignore.json."""
     try:
-        if os.path.exists("ignore.json"):
-            with open("ignore.json", "r") as f:
-                data = json.load(f)
-                return data.get("ignored_findings", {})
-        return {}
+        if not os.path.exists("ignore.json"):
+            # Initialize empty ignore.json
+            with open("ignore.json", "w") as f:
+                json.dump({"ignored_findings": {}}, f)
+            logging.info("Created empty ignore.json")
+            return {}
+        with open("ignore.json", "r") as f:
+            data = json.load(f)
+            return data.get("ignored_findings", {})
     except (IOError, json.JSONDecodeError) as e:
-        click.echo(f"[Warning] Failed to load ignore.json: {str(e)}")
+        logging.warning(f"Failed to load ignore.json: {str(e)}. Initializing empty ignore list.")
+        try:
+            with open("ignore.json", "w") as f:
+                json.dump({"ignored_findings": {}}, f)
+        except IOError as e:
+            logging.error(f"Failed to create ignore.json: {str(e)}")
         return {}
-
 
 def scan_vulnerabilities(path, quiet=False):
     """Check COBOL files for common vulnerabilities."""
@@ -313,7 +315,6 @@ def scan_vulnerabilities(path, quiet=False):
 
     return findings
 
-
 def export_results(results, output, format, quiet=False):
     """Export the scan results to the specified format (JSON/SARIF)."""
     if not results:
@@ -359,7 +360,8 @@ def export_results(results, output, format, quiet=False):
                     }],
                     "properties": {
                         "uid": result.get("uid", "unknown"),
-                        "code_snippet": result.get("code_snippet", "N/A")
+                        "code_snippet": result.get("code_snippet", "N/A"),
+                        "cvss_score": result.get("cvss_score", 0.0)
                     }
                 } for result in results]
             }]
@@ -372,7 +374,6 @@ def export_results(results, output, format, quiet=False):
                 click.echo(f"[Info] Results exported to {output} in SARIF format.")
         except IOError as e:
             click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
-
 
 if __name__ == "__main__":
     cli()
