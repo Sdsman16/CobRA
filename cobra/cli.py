@@ -23,14 +23,15 @@ def cli():
 @click.argument("path")
 @click.option("--output", type=click.Path(), help="Path to save results.")
 @click.option("--format", type=click.Choice(["json", "sarif"]), help="Export format.")
-def scan(path, output, format):
+@click.option("--line-tolerance", type=int, default=10, help="Line number tolerance for matching ignored findings.")
+def scan(path, output, format, line_tolerance):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     cves = load_cached_cves()
     if not cves:
         click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
-    # Load ignored UIDs
-    ignored_uids = load_ignored_uids()
+    # Load ignored findings
+    ignored_findings = load_ignored_uids()
 
     # Collect CVE results
     click.echo("[Debug] Starting scan_directory")
@@ -60,8 +61,26 @@ def scan(path, output, format):
     results.extend(vulnerability_results)
 
     # Filter out ignored findings
-    results = [r for r in results if r["uid"] not in ignored_uids]
-    click.echo(f"[Info] Total findings after ignoring {len(ignored_uids)}: {len(results)}")
+    filtered_results = []
+    unmatched_ignores = set(ignored_findings.keys())
+    for result in results:
+        uid = result["uid"]
+        if uid in ignored_findings:
+            # Verify match with line tolerance and code snippet
+            ignored = ignored_findings[uid]
+            line_diff = abs(result["line"] - ignored["line"])
+            snippet_match = result["code_snippet"] == ignored["code_snippet"]
+            if line_diff <= line_tolerance and snippet_match:
+                unmatched_ignores.discard(uid)
+                continue
+        filtered_results.append(result)
+    results = filtered_results
+
+    # Warn about unmatched ignored findings
+    if unmatched_ignores:
+        click.echo(f"[Warning] {len(unmatched_ignores)} ignored findings no longer match any vulnerabilities. Run 'cobra ignore-list' to review.")
+
+    click.echo(f"[Info] Total findings after ignoring: {len(results)}")
 
     # Debug: Print results to verify contents
     click.echo("[Debug] Results before export:")
@@ -89,14 +108,23 @@ def update_cve_db():
 
 @cli.command()
 @click.argument("uid")
-def ignore(uid):
+@click.option("--file", type=click.Path(exists=True), help="File associated with the finding.")
+@click.option("--vulnerability", help="Vulnerability type (e.g., CVE-2019-14468).")
+@click.option("--line", type=int, help="Line number of the finding.")
+@click.option("--code-snippet", help="Code snippet associated with the finding.")
+def ignore(uid, file, vulnerability, line, code_snippet):
     """Add a finding UID to the ignore list."""
-    ignored_uids = load_ignored_uids()
-    if uid not in ignored_uids:
-        ignored_uids.append(uid)
+    ignored_findings = load_ignored_uids()
+    if uid not in ignored_findings:
+        ignored_findings[uid] = {
+            "file": file,
+            "vulnerability": vulnerability,
+            "line": line,
+            "code_snippet": code_snippet
+        }
         try:
             with open("ignore.json", "w") as f:
-                json.dump({"ignored_uids": ignored_uids}, f, indent=4)
+                json.dump({"ignored_findings": ignored_findings}, f, indent=4)
             click.echo(f"[Success] UID {uid} added to ignore list.")
         except IOError as e:
             click.echo(f"[Error] Failed to update ignore.json: {str(e)}")
@@ -104,17 +132,39 @@ def ignore(uid):
         click.echo(f"[Info] UID {uid} is already in the ignore list.")
 
 
+@cli.command()
+@click.option("--prune", is_flag=True, help="Remove unmatched ignored findings.")
+def ignore_list(prune):
+    """List all ignored findings and optionally prune unmatched ones."""
+    ignored_findings = load_ignored_uids()
+    if not ignored_findings:
+        click.echo("[Info] No ignored findings.")
+        return
+
+    click.echo("[Info] Ignored findings:")
+    for uid, details in ignored_findings.items():
+        click.echo(
+            f"UID: {uid}, File: {details['file']}, Vulnerability: {details['vulnerability']}, "
+            f"Line: {details['line']}, Snippet: {details['code_snippet'][:50]}..."
+        )
+
+    if prune:
+        # Pruning requires a scan to identify unmatched UIDs; for simplicity, warn user
+        click.echo("[Warning] Pruning requires a scan to identify unmatched findings. Run 'cobra scan' to detect outdated ignores.")
+        # Placeholder for pruning logic (can be enhanced with scan integration)
+
+
 def load_ignored_uids():
-    """Load the list of ignored UIDs from ignore.json."""
+    """Load the dictionary of ignored findings from ignore.json."""
     try:
         if os.path.exists("ignore.json"):
             with open("ignore.json", "r") as f:
                 data = json.load(f)
-                return data.get("ignored_uids", [])
-        return []
+                return data.get("ignored_findings", {})
+        return {}
     except (IOError, json.JSONDecodeError) as e:
         click.echo(f"[Warning] Failed to load ignore.json: {str(e)}")
-        return []
+        return {}
 
 
 def scan_vulnerabilities(path):
@@ -125,86 +175,99 @@ def scan_vulnerabilities(path):
         filename = os.path.basename(file_path)
         try:
             with open(file_path, "r", errors="ignore") as file:
-                cobol_code = file.read()
+                lines = file.readlines()
+            code = "".join(lines)
         except IOError as e:
             click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
             return
 
         # Check for COBOL-specific vulnerabilities (e.g., ACCEPT statements)
-        for i, line in enumerate(cobol_code.splitlines(), 1):
+        for i, line in enumerate(lines, 1):
             if "ACCEPT" in line.upper():
+                code_snippet = "".join(lines[max(0, i-2):min(len(lines), i+1)]).strip()
                 findings.append({
                     "file": file_path,
                     "vulnerability": "Unvalidated Input",
                     "message": f"Use of ACCEPT statement (unvalidated input) at line {i}",
                     "severity": "Medium",
                     "line": i,
-                    "uid": str(uuid.uuid4())
+                    "uid": generate_uid(file_path, "Unvalidated Input", i, code_snippet),
+                    "code_snippet": code_snippet
                 })
                 click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
 
         # Check for XSS vulnerabilities
-        xss_issues = check_for_xss(cobol_code)
+        xss_issues = check_for_xss(code)
         for issue in xss_issues:
+            code_snippet = "N/A"  # Adjust if line info is available
             findings.append({
                 "file": file_path,
                 "vulnerability": "XSS",
                 "message": issue,
                 "severity": "Medium",
-                "line": 0,  # Unknown line, adjust if line info is available
-                "uid": str(uuid.uuid4())
+                "line": 0,
+                "uid": generate_uid(file_path, "XSS", 0, code_snippet),
+                "code_snippet": code_snippet
             })
             click.echo(f"XSS vulnerability found in {filename}: {issue}")
 
         # Check for SQL Injection vulnerabilities
-        sql_issues = check_for_sql_injection(cobol_code)
+        sql_issues = check_for_sql_injection(code)
         for issue in sql_issues:
+            code_snippet = "N/A"
             findings.append({
                 "file": file_path,
                 "vulnerability": "SQL Injection",
                 "message": issue,
                 "severity": "High",
                 "line": 0,
-                "uid": str(uuid.uuid4())
+                "uid": generate_uid(file_path, "SQL Injection", 0, code_snippet),
+                "code_snippet": code_snippet
             })
             click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
 
         # Check for Command Injection vulnerabilities
-        command_issues = check_for_command_injection(cobol_code)
+        command_issues = check_for_command_injection(code)
         for issue in command_issues:
+            code_snippet = "N/A"
             findings.append({
                 "file": file_path,
                 "vulnerability": "Command Injection",
                 "message": issue,
                 "severity": "High",
                 "line": 0,
-                "uid": str(uuid.uuid4())
+                "uid": generate_uid(file_path, "Command Injection", 0, code_snippet),
+                "code_snippet": code_snippet
             })
             click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
-        cryptographic_issues = check_for_insecure_cryptographic_storage(cobol_code)
+        cryptographic_issues = check_for_insecure_cryptographic_storage(code)
         for issue in cryptographic_issues:
+            code_snippet = "N/A"
             findings.append({
                 "file": file_path,
                 "vulnerability": "Insecure Cryptographic Storage",
                 "message": issue,
                 "severity": "Medium",
                 "line": 0,
-                "uid": str(uuid.uuid4())
+                "uid": generate_uid(file_path, "Insecure Cryptographic Storage", 0, code_snippet),
+                "code_snippet": code_snippet
             })
             click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
 
         # Check for CSRF vulnerabilities
-        csrf_issues = check_for_csrf(cobol_code)
+        csrf_issues = check_for_csrf(code)
         for issue in csrf_issues:
+            code_snippet = "N/A"
             findings.append({
                 "file": file_path,
                 "vulnerability": "CSRF",
                 "message": issue,
                 "severity": "Medium",
                 "line": 0,
-                "uid": str(uuid.uuid4())
+                "uid": generate_uid(file_path, "CSRF", 0, code_snippet),
+                "code_snippet": code_snippet
             })
             click.echo(f"CSRF vulnerability found in {filename}: {issue}")
 
@@ -267,7 +330,8 @@ def export_results(results, output, format):
                         }
                     }],
                     "properties": {
-                        "uid": result.get("uid", "unknown")
+                        "uid": result.get("uid", "unknown"),
+                        "code_snippet": result.get("code_snippet", "N/A")
                     }
                 } for result in results]
             }]
