@@ -42,14 +42,14 @@ def get_fix_recommendation(vulnerability, message):
     return "Review COBOL best practices for secure coding and apply input validation or runtime checks."
 
 @cli.command()
-@click.argument("path")
+@click.argument("directory")
 @click.option("--output", type=click.Path(), help="Path to save results.")
 @click.option("--format", type=click.Choice(["json", "sarif"]), help="Export format.")
 @click.option("--line-tolerance", type=int, default=10, help="Line number tolerance for matching ignored findings.")
 @click.option("--quiet", is_flag=True, help="Suppress all non-critical console output during scan.")
 @click.option("--verbose", is_flag=True, help="Show detailed debug logs of findings.")
 @click.option("--no-update", is_flag=True, help="Skip automatic CVE database update.")
-def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
+def scan(directory, output, format, line_tolerance, quiet, verbose, no_update):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     # Update CVE database unless --no-update is specified
     if not no_update and should_update_cves():
@@ -69,7 +69,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
     if not quiet:
         click.echo("[Debug] Starting scan_directory")
     try:
-        results = scan_directory(path, cves, quiet=quiet)
+        results = scan_directory(directory, cves, quiet=quiet)
         if results is None:
             if not quiet:
                 click.echo("[Error] scan_directory returned None. Check for errors in the scanner or input path.")
@@ -89,7 +89,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
     # Collect vulnerability results
     if not quiet:
         click.echo("[Debug] Starting scan_vulnerabilities")
-    vulnerability_results = scan_vulnerabilities(path, quiet=quiet)
+    vulnerability_results = scan_vulnerabilities(directory, quiet=quiet)
     if not quiet:
         click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
     if verbose:

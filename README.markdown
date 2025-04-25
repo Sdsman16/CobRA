@@ -19,7 +19,6 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 ### Prerequisites
 
 - **Python**: Version 3.8 or higher (tested with Python 3.13).
-- **Dependencies**: `click`, `rich`, `requests`.
 - **Operating System**: Windows, Linux, or macOS (tested on Windows).
 
 ### Steps
@@ -30,12 +29,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
    cd CobRA
    ```
 
-2. **Install Dependencies**:
-   ```bash
-   pip install click rich requests
-   ```
-
-3. **Uninstall Global `cobra` Package** (if installed):
+2. **Uninstall Global `cobra` Package** (if installed):
    To avoid conflicts with the global `cobra` package, run:
    ```bash
    pip uninstall cobra -y
@@ -51,7 +45,13 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
    ```
    The output should show no `cobra` package.
 
-4. **Clear Python Cache**:
+3. **Install CobRA Package**:
+   Install CobRA and its dependencies, which will make the `cobra` command available:
+   ```bash
+   pip install .
+   ```
+
+4. **Clear Python Cache** (if needed):
    ```bash
    del /s /q C:\Users\sdson\PycharmProjects\CobRA\__pycache__
    del /s /q C:\Users\sdson\PycharmProjects\CobRA\cobra\__pycache__
@@ -60,7 +60,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 5. **Update CVE Database**:
    Populate `cve_cache.json` with the latest CVE data:
    ```bash
-   python -m cobra.cli update-cve-db
+   cobra update-cve-db
    ```
    Check `cobra.log` for:
    ```
@@ -76,38 +76,38 @@ CobRA supports scanning individual `.cbl` files or directories for CVEs and vuln
 - **Scan Files or Directories**:
   Scan a COBOL file or directory for CVEs and vulnerabilities:
   ```bash
-  python -m cobra.cli scan "path/to/file.cbl" --output=results.json --format=json
+  cobra scan path/to/file.cbl --output results.json --format json
   ```
   ```bash
-  python -m cobra.cli scan "path/to/directory" --verbose --output=results.sarif --format=sarif
+  cobra scan path/to/directory --verbose --output results.sarif --format sarif
   ```
 
 - **Update CVE Database**:
   Refresh the local CVE cache from the NVD API:
   ```bash
-  python -m cobra.cli update-cve-db
+  cobra update-cve-db
   ```
 
 - **Ignore a Finding**:
   Add a finding’s UID to the ignore list:
   ```bash
-  python -m cobra.cli ignore "abc123" --file="path/to/file.cbl" --vulnerability="CVE-2019-14468" --line=10 --code-snippet="MOVE ..."
+  cobra ignore abc123 --file path/to/file.cbl --vulnerability CVE-2019-14468 --line 10 --code-snippet "MOVE ..."
   ```
 
 - **List Ignored Findings**:
   View or prune ignored findings:
   ```bash
-  python -m cobra.cli ignore-list
+  cobra ignore-list
   ```
   ```bash
-  python -m cobra.cli ignore-list --prune
+  cobra ignore-list --prune
   ```
 
 ### Options for `scan`
 
-- `--output=<filename>`: Save results to a file (JSON or SARIF).
-- `--format=<json|sarif>`: Output format (default: console).
-- `--line-tolerance=<int>`: Line number tolerance for matching ignored findings (default: 10).
+- `--output <filename>`: Save results to a file (JSON or SARIF).
+- `--format <json|sarif>`: Output format (default: console).
+- `--line-tolerance <int>`: Line number tolerance for matching ignored findings (default: 10).
 - `--quiet`: Suppress non-critical console output.
 - `--verbose`: Show detailed debug logs.
 - `--no-update`: Skip automatic CVE database update.
@@ -116,16 +116,16 @@ CobRA supports scanning individual `.cbl` files or directories for CVEs and vuln
 
 ```
 [Debug] Starting scan_directory
-cobra found 28 issues grouped by file:
+cobra found 46 issues grouped by file:
 
-buffer_overflow.cbl
+C:\Users\sdson\Downloads\buffer_overflow.cbl
   [RED]HIGH[/RED] (line 3): Keyword match for CVE-2019-14468: ... (UID: 7a907042..., CVSS: 7.5)
     [Fix] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
   [YELLOW]MEDIUM[/YELLOW] (line 19): Use of ACCEPT statement (unvalidated input). ... (UID: 55640145..., CVSS: 0.0)
     [Fix] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
-[Info] Found 25 CVE-related issues.
+[Info] Found 43 CVE-related issues.
 [Info] Found 3 vulnerability issues.
-[Info] Total findings after ignoring: 28
+[Info] Total findings after ignoring: 46
 [Success] Results have been saved to: results.json
 ```
 
@@ -161,13 +161,29 @@ buffer_overflow.cbl
 ## Troubleshooting
 
 - **Global Package Conflict**:
-  If CobRA runs via `cobra.exe` instead of local files:
-  - Verify: `python -c "import cobra; print(cobra.__file__)"` should point to `C:\Users\sdson\PycharmProjects\CobRA\cobra\__init__.py`.
-  - Re-run uninstall steps above.
+  If CobRA doesn’t run as expected:
+  - Verify: `pip list | findstr cobra` should show `cobol-risk-analyzer`.
+  - Re-run uninstall steps for the global `cobra` package and reinstall CobRA:
+    ```bash
+    pip uninstall cobra -y
+    pip install .
+    ```
+
+- **Command Not Found**:
+  If `cobra` command is not recognized:
+  - Ensure CobRA is installed: `pip install .`
+  - Verify the Python Scripts directory is in your PATH (Windows):
+    ```bash
+    echo %PATH%
+    ```
+    Add if needed:
+    ```bash
+    set PATH=%PATH%;C:\Users\sdson\AppData\Local\Programs\Python\Python313\Scripts
+    ```
 
 - **Empty CVE Database**:
   If no CVEs are detected:
-  - Run: `python -m cobra.cli update-cve-db`.
+  - Run: `cobra update-cve-db`.
   - Check `cve_cache.json` for CVEs (e.g., `CVE-2019-14468`).
   - Inspect `cobra.log` for API errors.
 
@@ -198,7 +214,7 @@ Contributions are welcome! To contribute:
 1. Fork the repository.
 2. Create a branch: `git checkout -b feature/your-feature`.
 3. Commit changes: `git commit -m "Add your feature"`.
-4. Push:ODS: `git push origin feature/your-feature`.
+4. Push: `git push origin feature/your-feature`.
 5. Open a pull request.
 
 Please include tests and update documentation as needed.
