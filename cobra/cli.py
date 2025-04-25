@@ -23,8 +23,10 @@ def scan(path, output, format):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     cves = load_cached_cves()
 
-    # Collect results
+    # Collect CVE results
     results = scan_directory(path, cves)
+
+    # Collect vulnerability results
     vulnerability_results = scan_vulnerabilities(path)
 
     # If there are vulnerabilities, add them to the results
@@ -41,7 +43,7 @@ def scan(path, output, format):
         else:
             click.echo(f"[Info] Creating new file: {output}")
 
-        # Export if requested
+        # Export results to the requested format
         from cobra.exporter import export_results
         export_results(results, output, format)
 
@@ -124,3 +126,6 @@ def scan_vulnerabilities(path):
         click.echo("[Info] No vulnerabilities found.")
 
     return findings
+
+if __name__ == "__main__":
+    cli()
