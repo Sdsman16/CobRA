@@ -89,14 +89,24 @@ def scan_directory(path, cves, quiet=False):
     # Deduplicate findings
     results = deduplicate_findings(results)
 
+    from collections import defaultdict
+
     if not quiet:
         if not results:
             console.print("[green]cobra found no vulnerabilities![/green]")
         else:
-            console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
+            console.print(f"[bold red]cobra found {len(results)} issues grouped by file:[/bold red]")
+            findings_by_file = defaultdict(list)
             for finding in results:
-                console.print(
-                    f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
-                )
+                findings_by_file[finding["file"]].append(finding)
+
+            for file, findings in findings_by_file.items():
+                console.print(f"\n[bold underline]{file}[/bold underline]")
+                for finding in findings:
+                    console.print(
+                        f"  [red]{finding['severity'].upper()}[/red] (line {finding['line']}): {finding['message']} "
+                        f"[cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
+                    )
+
     logging.debug(f"Total issues found: {len(results)}")
     return results
