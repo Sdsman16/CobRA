@@ -27,10 +27,19 @@ def scan(path, output, format):
     results = scan_directory(path, cves)
     results += scan_vulnerabilities(path)
 
-    # Export if requested
-    if output and format:
+    # Check if output file exists and warn user
+    if output:
+        if os.path.exists(output):
+            click.echo(f"[Warning] {output} already exists and will be overwritten.")
+        else:
+            click.echo(f"[Info] Creating new file: {output}")
+
+        # Export if requested
         from cobra.exporter import export_results
         export_results(results, output, format)
+
+        # Inform the user that the file has been saved and where
+        click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
 
 @cli.command()
 def update_cve_db():
