@@ -276,7 +276,7 @@ def scan_vulnerabilities(path):
                 if file.endswith(".cbl"):
                     analyze_file(os.path.join(root, file))
     elif os.path.isfile(path):
-        if file.endswith(".cbl"):
+        if path.endswith(".cbl"):
             analyze_file(path)
         else:
             click.echo(f"[Error] {path} is not a .cbl file.")

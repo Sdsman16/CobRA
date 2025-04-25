@@ -31,6 +31,8 @@ def scan_directory(path, cves):
                 lines = f.readlines()
             code = "".join(lines)
             findings = run_rules(code, file_path, cves)
+            # Debug: Log findings structure
+            logging.debug(f"run_rules output for {file_path}: {findings}")
             # Add UID and code snippet to each finding
             for finding in findings:
                 line_number = finding["line"]
@@ -38,16 +40,13 @@ def scan_directory(path, cves):
                 start_line = max(0, line_number - 2)  # 1-based to 0-based
                 end_line = min(len(lines), line_number + 1)
                 code_snippet = "".join(lines[start_line:end_line]).strip()
-                finding["uid"] = generate_uid(
-                    file_path, finding["vulnerability"], line_number, code_snippet
-                )
+                # Handle missing keys
+                vulnerability = finding.get("vulnerability", finding.get("id", "Unknown"))
+                finding["vulnerability"] = vulnerability
+                finding["message"] = finding.get("message", finding.get("description", "No description"))
+                finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
                 finding["code_snippet"] = code_snippet
-                # Ensure consistent keys
-                if "message" not in finding:
-                    finding["message"] = finding.get("description", "No description")
-                if "vulnerability" not in finding:
-                    finding["vulnerability"] = finding.get("id", "Unknown")
-            results.extend(findings)
+                results.append(finding)
             logging.debug(f"Found {len(findings)} issues in file: {file_path}")
         except Exception as e:
             console.print(f"[red]Error reading file {file_path}: {e}[/red]")
