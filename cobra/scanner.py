@@ -6,8 +6,7 @@ from rich.console import Console
 console = Console()
 
 
-def scan(path, cves):
-    """Scan the provided path (file or directory) for vulnerabilities."""
+def scan_directory(path, cves):
     results = []
 
     # If the path is a directory, walk through all files

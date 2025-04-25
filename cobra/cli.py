@@ -1,6 +1,6 @@
-import os  # Make sure to import os
+import os
 import click
-from cobra.scanner import scan_directory
+from cobra.scanner import scan_directory  # Import here
 from cobra.cve_checker import fetch_cves, load_cached_cves
 from cobra.vuln_checker import (
     check_for_xss,
@@ -10,12 +10,10 @@ from cobra.vuln_checker import (
     check_for_csrf
 )
 
-
 @click.group()
 def cli():
     """cobra - COBOL Risk Analyzer"""
     pass
-
 
 @cli.command()
 @click.argument("path")
@@ -30,17 +28,14 @@ def scan(path):
     # Check for additional vulnerabilities
     scan_vulnerabilities(path)
 
-
 @cli.command()
 def update_cve_db():
     """Update the local CVE cache."""
     fetch_cves()
     click.echo("CVE database updated.")
 
-
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
-
     # Read the COBOL file content and check for vulnerabilities
     for filename in os.listdir(path):
         file_path = os.path.join(path, filename)
