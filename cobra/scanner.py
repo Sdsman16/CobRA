@@ -1,127 +1,104 @@
-import re
+import os
 import logging
+import re
+from cobra.rules import run_rules
+from cobra.utils import is_cobol_file, generate_uid
+from rich.console import Console
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
 
+console = Console()
 
-def run_rules(code, filename, cves):
-    """
-    Apply rules to detect CVEs and vulnerabilities in COBOL code.
+def deduplicate_findings(findings):
+    """Remove duplicate findings based on file, message, and line."""
+    seen = set()
+    unique_findings = []
+    for f in findings:
+        key = (f["file"], f["message"], f["line"])
+        if key not in seen:
+            seen.add(key)
+            unique_findings.append(f)
+    return unique_findings
 
-    Args:
-        code (str): COBOL source code.
-        filename (str): Path to the COBOL file.
-        cves (list): List of CVE dictionaries with id, keywords, summary, and optional cvss_score.
+def scan_directory(path, cves, quiet=False):
+    """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
+    results = []
+    logging.debug(f"Starting scan_directory for path: {path}")
 
-    Returns:
-        list: List of findings with file, line, message, severity, vulnerability, and optional cvss_score.
-    """
-    findings = []
-    lines = code.splitlines()
+    def analyze_file(file_path):
+        try:
+            with open(file_path, "r", errors="ignore") as f:
+                lines = f.readlines()
+            code = "".join(lines)
+            findings = run_rules(code, file_path, cves)
+            # Debug: Log findings structure
+            logging.debug(f"run_rules output for {file_path}: {findings}")
+            # Add UID and code snippet to each finding
+            for finding in findings:
+                line_number = finding["line"]
+                # Get code snippet (current line ±1 for context)
+                start_line = max(0, line_number - 2)  # 1-based to 0-based
+                end_line = min(len(lines), line_number + 1)
+                code_snippet = "".join(lines[start_line:end_line]).strip()
+                # Handle vulnerability field
+                vulnerability = finding.get("vulnerability")
+                if not vulnerability:
+                    # Extract CVE ID from message if no vulnerability
+                    message = finding.get("message", "")
+                    cve_match = re.search(r"CVE-\d{4}-\d{4,}", message)
+                    vulnerability = cve_match.group(0) if cve_match else "Unknown"
+                finding["vulnerability"] = vulnerability
+                finding["message"] = finding.get("message", "No description")
+                finding["severity"] = finding.get("severity", "Medium").capitalize()
+                finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
+                finding["code_snippet"] = code_snippet
+                finding["cvss_score"] = finding.get("cvss_score", 0.0)
+                results.append(finding)
+            logging.debug(f"Found {len(findings)} issues in file: {file_path}")
+        except Exception as e:
+            if not quiet:
+                console.print(f"[red]Error reading file {file_path}: {e}[/red]")
+            logging.error(f"Error reading file {file_path}: {e}")
 
-    # Log cves structure for debugging
-    logging.debug(f"cves structure: {cves[:2]}")  # Log first two for brevity
+    # Handle file input
+    if os.path.isfile(path):
+        if is_cobol_file(path):
+            analyze_file(path)
+        else:
+            if not quiet:
+                console.print(f"[red]Error: {path} is not a valid COBOL file![/red]")
+            logging.warning(f"Invalid COBOL file: {path}")
+            return results
 
-    # COBOL-specific vulnerability patterns
-    vuln_patterns = [
-        {
-            "vulnerability": "Unvalidated Input",
-            "pattern": r"ACCEPT\s+[A-Z0-9-]+",
-            "message": "Use of ACCEPT statement (unvalidated input). Consider validating input length.",
-            "severity": "Medium"
-        },
-        {
-            "vulnerability": "Hardcoded Value",
-            "pattern": r"MOVE\s+['\"][^'\"]+['\"]\s+TO\s+[A-Z0-9-]+",
-            "message": "Hardcoded value assigned (possible sensitive data). Use external configuration.",
-            "severity": "High"
-        },
-        {
-            "vulnerability": "Insecure File Operation",
-            "pattern": r"OPEN\s+(INPUT|OUTPUT|I-O)\s+[A-Z0-9-]+",
-            "message": "Insecure file OPEN without validation. Validate file paths and permissions.",
-            "severity": "Medium"
-        },
-        {
-            "vulnerability": "Dynamic Call",
-            "pattern": r"CALL\s+['\"][A-Z0-9-]+['\"]",
-            "message": "Dynamic CALL with unvalidated input. Sanitize inputs to prevent code injection.",
-            "severity": "High"
-        },
-        {
-            "vulnerability": "Hardcoded Credentials",
-            "pattern": r"(USER-ID|PASSWORD)\s*=\s*['\"][^'\"]+['\"]",
-            "message": "Hardcoded credentials detected. Store credentials securely outside the codebase.",
-            "severity": "High"
-        }
-    ]
+    # Handle directory input
+    elif os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for file in files:
+                if is_cobol_file(file):
+                    full_path = os.path.join(root, file)
+                    analyze_file(full_path)
 
-    # Scan for COBOL vulnerabilities
-    for pattern in vuln_patterns:
-        for i, line in enumerate(lines, 1):
-            if re.search(pattern["pattern"], line, re.IGNORECASE):
-                findings.append({
-                    "file": filename,
-                    "line": i,
-                    "message": pattern["message"],
-                    "severity": pattern["severity"],
-                    "vulnerability": pattern["vulnerability"]
-                })
-                logging.debug(f"Found {pattern['vulnerability']} at {filename}:{i}")
+    # Invalid path
+    else:
+        if not quiet:
+            console.print(f"[red]Error: {path} is neither a valid file nor a directory![/red]")
+        logging.warning(f"Invalid path: {path}")
+        return results
 
-    # CVE-specific patterns for precise matching
-    cve_patterns = [
-        {
-            "id": "CVE-2019-14468",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
-            "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
-            "severity": "High"
-        },
-        {
-            "id": "CVE-2019-16395",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
-            "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
-            "severity": "High"
-        },
-        {
-            "id": "CVE-2023-4501",
-            "pattern": r"ACCEPT\s+[A-Z0-9-]+.*(USERNAME|PASSWORD)",
-            "message": "Keyword match for CVE-2023-4501: Ineffective authentication in OpenText (Micro Focus) Visual COBOL.",
-            "severity": "High"
-        }
-    ]
+    # Deduplicate findings
+    results = deduplicate_findings(results)
 
-    # Scan for CVEs using specific patterns
-    for pattern in cve_patterns:
-        for i, line in enumerate(lines, 1):
-            if re.search(pattern["pattern"], line, re.IGNORECASE):
-                # Find CVSS score from cves list, if available
-                cve_data = next((c for c in cves if c["id"] == pattern["id"]), {})
-                findings.append({
-                    "file": filename,
-                    "line": i,
-                    "message": pattern["message"],
-                    "severity": pattern["severity"],
-                    "vulnerability": pattern["id"],
-                    "cvss_score": cve_data.get("cvss_score", 0.0)
-                })
-                logging.debug(f"Found CVE {pattern['id']} at {filename}:{i}")
+    # Output results
+    if not quiet:
+        if not results:
+            console.print("[green]cobra found no vulnerabilities![/green]")
+        else:
+            console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
+            for finding in results:
+                console.print(
+                    f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
+                )
+    logging.debug(f"Total issues found: {len(results)}")
 
-    # Fallback: Scan for CVEs using keywords from cves list
-    for cve in cves:
-        for keyword in cve.get("keywords", []):
-            for i, line in enumerate(lines, 1):
-                if keyword.lower() in line.lower():
-                    findings.append({
-                        "file": filename,
-                        "line": i,
-                        "message": f"Keyword match for {cve['id']}: {cve['summary']}",
-                        "severity": "High",
-                        "vulnerability": cve["id"],
-                        "cvss_score": cve.get("cvss_score", 0.0)
-                    })
-                    logging.debug(f"Found CVE {cve['id']} via keyword '{keyword}' at {filename}:{i}")
-
-    logging.debug(f"run_rules found {len(findings)} issues in {filename}")
-    return findings
+    return results
