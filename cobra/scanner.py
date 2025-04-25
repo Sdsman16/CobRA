@@ -20,7 +20,7 @@ def deduplicate_findings(findings):
             unique_findings.append(f)
     return unique_findings
 
-def scan_directory(path, cves):
+def scan_directory(path, cves, quiet=False):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     results = []
     logging.debug(f"Starting scan_directory for path: {path}")
@@ -49,7 +49,8 @@ def scan_directory(path, cves):
                 results.append(finding)
             logging.debug(f"Found {len(findings)} issues in file: {file_path}")
         except Exception as e:
-            console.print(f"[red]Error reading file {file_path}: {e}[/red]")
+            if not quiet:
+                console.print(f"[red]Error reading file {file_path}: {e}[/red]")
             logging.error(f"Error reading file {file_path}: {e}")
 
     # Handle file input
@@ -57,7 +58,8 @@ def scan_directory(path, cves):
         if is_cobol_file(path):
             analyze_file(path)
         else:
-            console.print(f"[red]Error: {path} is not a valid COBOL file![/red]")
+            if not quiet:
+                console.print(f"[red]Error: {path} is not a valid COBOL file![/red]")
             logging.warning(f"Invalid COBOL file: {path}")
             return results
 
@@ -71,7 +73,8 @@ def scan_directory(path, cves):
 
     # Invalid path
     else:
-        console.print(f"[red]Error: {path} is neither a valid file nor a directory![/red]")
+        if not quiet:
+            console.print(f"[red]Error: {path} is neither a valid file nor a directory![/red]")
         logging.warning(f"Invalid path: {path}")
         return results
 
@@ -79,15 +82,15 @@ def scan_directory(path, cves):
     results = deduplicate_findings(results)
 
     # Output results
-    if not results:
-        console.print("[green]cobra found no vulnerabilities![/green]")
-        logging.debug("No vulnerabilities found")
-    else:
-        console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
-        for finding in results:
-            console.print(
-                f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}...)[/cyan]"
-            )
-        logging.debug(f"Total issues found: {len(results)}")
+    if not quiet:
+        if not results:
+            console.print("[green]cobra found no vulnerabilities![/green]")
+        else:
+            console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
+            for finding in results:
+                console.print(
+                    f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}...)[/cyan]"
+                )
+    logging.debug(f"Total issues found: {len(results)}")
 
     return results

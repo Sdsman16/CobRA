@@ -24,38 +24,48 @@ def cli():
 @click.option("--output", type=click.Path(), help="Path to save results.")
 @click.option("--format", type=click.Choice(["json", "sarif"]), help="Export format.")
 @click.option("--line-tolerance", type=int, default=10, help="Line number tolerance for matching ignored findings.")
-def scan(path, output, format, line_tolerance):
+@click.option("--quiet", is_flag=True, help="Suppress console output during scan.")
+def scan(path, output, format, line_tolerance, quiet):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     cves = load_cached_cves()
-    if not cves:
-        click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
+    if not quiet:
+        if not cves:
+            click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
     # Load ignored findings
     ignored_findings = load_ignored_uids()
+    if not quiet and ignored_findings:
+        click.echo(f"[Info] Loaded {len(ignored_findings)} ignored findings.")
 
     # Collect CVE results
-    click.echo("[Debug] Starting scan_directory")
+    if not quiet:
+        click.echo("[Debug] Starting scan_directory")
     try:
-        results = scan_directory(path, cves)
+        results = scan_directory(path, cves, quiet=quiet)
         if results is None:
-            click.echo("[Error] scan_directory returned None. Check for errors in the scanner or input path.")
+            if not quiet:
+                click.echo("[Error] scan_directory returned None. Check for errors in the scanner or input path.")
             results = []
         else:
-            click.echo(f"[Info] Found {len(results)} CVE-related issues.")
-            click.echo("[Debug] CVE results:")
-            for result in results:
-                click.echo(result)
+            if not quiet:
+                click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+                click.echo("[Debug] CVE results:")
+                for result in results:
+                    click.echo(result)
     except Exception as e:
-        click.echo(f"[Error] Failed to scan directory: {str(e)}")
+        if not quiet:
+            click.echo(f"[Error] Failed to scan directory: {str(e)}")
         results = []
 
     # Collect vulnerability results
-    click.echo("[Debug] Starting scan_vulnerabilities")
-    vulnerability_results = scan_vulnerabilities(path)
-    click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
-    click.echo("[Debug] Vulnerability results:")
-    for result in vulnerability_results:
-        click.echo(result)
+    if not quiet:
+        click.echo("[Debug] Starting scan_vulnerabilities")
+    vulnerability_results = scan_vulnerabilities(path, quiet=quiet)
+    if not quiet:
+        click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
+        click.echo("[Debug] Vulnerability results:")
+        for result in vulnerability_results:
+            click.echo(result)
 
     # Combine results
     results.extend(vulnerability_results)
@@ -77,26 +87,26 @@ def scan(path, output, format, line_tolerance):
     results = filtered_results
 
     # Warn about unmatched ignored findings
-    if unmatched_ignores:
+    if not quiet and unmatched_ignores:
         click.echo(f"[Warning] {len(unmatched_ignores)} ignored findings no longer match any vulnerabilities. Run 'cobra ignore-list' to review.")
 
-    click.echo(f"[Info] Total findings after ignoring: {len(results)}")
-
-    # Debug: Print results to verify contents
-    click.echo("[Debug] Results before export:")
-    for result in results:
-        click.echo(result)
+    if not quiet:
+        click.echo(f"[Info] Total findings after ignoring: {len(results)}")
+        click.echo("[Debug] Results before export:")
+        for result in results:
+            click.echo(result)
 
     # Export results if output is specified
     if output:
-        if os.path.exists(output):
+        if not quiet and os.path.exists(output):
             click.echo(f"[Warning] {output} already exists and will be overwritten.")
-        else:
+        elif not quiet:
             click.echo(f"[Info] Creating new file: {output}")
 
         # Export results to the requested format
-        export_results(results, output, format)
-        click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
+        export_results(results, output, format, quiet=quiet)
+        if not quiet:
+            click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
 
 
 @cli.command()
@@ -165,7 +175,7 @@ def load_ignored_uids():
         return {}
 
 
-def scan_vulnerabilities(path):
+def scan_vulnerabilities(path, quiet=False):
     """Check COBOL files for common vulnerabilities."""
     findings = []
 
@@ -176,7 +186,8 @@ def scan_vulnerabilities(path):
                 lines = file.readlines()
             code = "".join(lines)
         except IOError as e:
-            click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
+            if not quiet:
+                click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
             return
 
         # Check for COBOL-specific vulnerabilities (e.g., ACCEPT statements)
@@ -192,7 +203,8 @@ def scan_vulnerabilities(path):
                     "uid": generate_uid(file_path, "Unvalidated Input", i, code_snippet),
                     "code_snippet": code_snippet
                 })
-                click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
+                if not quiet:
+                    click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
 
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(code)
@@ -207,7 +219,8 @@ def scan_vulnerabilities(path):
                 "uid": generate_uid(file_path, "XSS", 0, code_snippet),
                 "code_snippet": code_snippet
             })
-            click.echo(f"XSS vulnerability found in {filename}: {issue}")
+            if not quiet:
+                click.echo(f"XSS vulnerability found in {filename}: {issue}")
 
         # Check for SQL Injection vulnerabilities
         sql_issues = check_for_sql_injection(code)
@@ -222,7 +235,8 @@ def scan_vulnerabilities(path):
                 "uid": generate_uid(file_path, "SQL Injection", 0, code_snippet),
                 "code_snippet": code_snippet
             })
-            click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
+            if not quiet:
+                click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
 
         # Check for Command Injection vulnerabilities
         command_issues = check_for_command_injection(code)
@@ -237,7 +251,8 @@ def scan_vulnerabilities(path):
                 "uid": generate_uid(file_path, "Command Injection", 0, code_snippet),
                 "code_snippet": code_snippet
             })
-            click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
+            if not quiet:
+                click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
         cryptographic_issues = check_for_insecure_cryptographic_storage(code)
@@ -252,7 +267,8 @@ def scan_vulnerabilities(path):
                 "uid": generate_uid(file_path, "Insecure Cryptographic Storage", 0, code_snippet),
                 "code_snippet": code_snippet
             })
-            click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
+            if not quiet:
+                click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
 
         # Check for CSRF vulnerabilities
         csrf_issues = check_for_csrf(code)
@@ -267,7 +283,8 @@ def scan_vulnerabilities(path):
                 "uid": generate_uid(file_path, "CSRF", 0, code_snippet),
                 "code_snippet": code_snippet
             })
-            click.echo(f"CSRF vulnerability found in {filename}: {issue}")
+            if not quiet:
+                click.echo(f"CSRF vulnerability found in {filename}: {issue}")
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -279,24 +296,28 @@ def scan_vulnerabilities(path):
         if path.endswith(".cbl"):
             analyze_file(path)
         else:
-            click.echo(f"[Error] {path} is not a .cbl file.")
+            if not quiet:
+                click.echo(f"[Error] {path} is not a .cbl file.")
     else:
-        click.echo(f"[Error] {path} is not a valid file or directory.")
+        if not quiet:
+            click.echo(f"[Error] {path} is not a valid file or directory.")
 
     return findings
 
 
-def export_results(results, output, format):
+def export_results(results, output, format, quiet=False):
     """Export the scan results to the specified format (JSON/SARIF)."""
     if not results:
-        click.echo("[Warning] No results to export.")
+        if not quiet:
+            click.echo("[Warning] No results to export.")
         return
 
     if format == "json":
         try:
             with open(output, "w") as json_file:
                 json.dump(results, json_file, indent=4)
-            click.echo(f"[Info] Results exported to {output} in JSON format.")
+            if not quiet:
+                click.echo(f"[Info] Results exported to {output} in JSON format.")
         except IOError as e:
             click.echo(f"[Error] Failed to write JSON file: {str(e)}")
 
@@ -338,7 +359,8 @@ def export_results(results, output, format):
         try:
             with open(output, "w") as sarif_file:
                 json.dump(sarif_results, sarif_file, indent=4)
-            click.echo(f"[Info] Results exported to {output} in SARIF format.")
+            if not quiet:
+                click.echo(f"[Info] Results exported to {output} in SARIF format.")
         except IOError as e:
             click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
 
