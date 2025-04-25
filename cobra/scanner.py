@@ -4,6 +4,7 @@ import re
 from cobra.rules import run_rules
 from cobra.utils import is_cobol_file, generate_uid
 from rich.console import Console
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
@@ -22,29 +23,25 @@ def deduplicate_findings(findings):
     return unique_findings
 
 def scan_directory(path, cves, quiet=False):
-    """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
+    """Scan COBOL files in the provided directory for CVEs and vulnerabilities using parallel scanning."""
     results = []
     logging.debug(f"Starting scan_directory for path: {path}")
 
     def analyze_file(file_path):
+        local_results = []
         try:
             with open(file_path, "r", errors="ignore") as f:
                 lines = f.readlines()
             code = "".join(lines)
             findings = run_rules(code, file_path, cves)
-            # Debug: Log findings structure
             logging.debug(f"run_rules output for {file_path}: {findings}")
-            # Add UID and code snippet to each finding
             for finding in findings:
                 line_number = finding["line"]
-                # Get code snippet (current line ±1 for context)
-                start_line = max(0, line_number - 2)  # 1-based to 0-based
+                start_line = max(0, line_number - 2)
                 end_line = min(len(lines), line_number + 1)
                 code_snippet = "".join(lines[start_line:end_line]).strip()
-                # Handle vulnerability field
                 vulnerability = finding.get("vulnerability")
                 if not vulnerability:
-                    # Extract CVE ID from message if no vulnerability
                     message = finding.get("message", "")
                     cve_match = re.search(r"CVE-\d{4}-\d{4,}", message)
                     vulnerability = cve_match.group(0) if cve_match else "Unknown"
@@ -54,42 +51,44 @@ def scan_directory(path, cves, quiet=False):
                 finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
                 finding["code_snippet"] = code_snippet
                 finding["cvss_score"] = finding.get("cvss_score", 0.0)
-                results.append(finding)
+                local_results.append(finding)
             logging.debug(f"Found {len(findings)} issues in file: {file_path}")
         except Exception as e:
             if not quiet:
                 console.print(f"[red]Error reading file {file_path}: {e}[/red]")
             logging.error(f"Error reading file {file_path}: {e}")
+        return local_results
 
-    # Handle file input
+    file_paths = []
     if os.path.isfile(path):
         if is_cobol_file(path):
-            analyze_file(path)
+            file_paths.append(path)
         else:
             if not quiet:
                 console.print(f"[red]Error: {path} is not a valid COBOL file![/red]")
             logging.warning(f"Invalid COBOL file: {path}")
             return results
-
-    # Handle directory input
     elif os.path.isdir(path):
         for root, _, files in os.walk(path):
             for file in files:
                 if is_cobol_file(file):
-                    full_path = os.path.join(root, file)
-                    analyze_file(full_path)
-
-    # Invalid path
+                    file_paths.append(os.path.join(root, file))
     else:
         if not quiet:
             console.print(f"[red]Error: {path} is neither a valid file nor a directory![/red]")
         logging.warning(f"Invalid path: {path}")
         return results
 
+    # Parallel scanning
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(analyze_file, fp): fp for fp in file_paths}
+        for future in as_completed(futures):
+            findings = future.result()
+            results.extend(findings)
+
     # Deduplicate findings
     results = deduplicate_findings(results)
 
-    # Output results
     if not quiet:
         if not results:
             console.print("[green]cobra found no vulnerabilities![/green]")
@@ -100,5 +99,4 @@ def scan_directory(path, cves, quiet=False):
                     f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
                 )
     logging.debug(f"Total issues found: {len(results)}")
-
     return results
