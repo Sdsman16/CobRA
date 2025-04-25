@@ -1,0 +1,164 @@
+[
+  {
+    "id": "CVE-2001-0208",
+    "summary": "MicroFocus Cobol 4.1, with the AppTrack feature enabled, installs the mfaslmf directory and the nolicense file with inse...",
+    "keywords": [
+      "microfocus",
+      "apptrack",
+      "feature",
+      "enabled,",
+      "installs",
+      "mfaslmf",
+      "directory",
+      "nolicense",
+      "insecure",
+      "permissions,"
+    ]
+  },
+  {
+    "id": "CVE-2012-0918",
+    "summary": "Unspecified vulnerability in Hitachi COBOL2002 Net Developer, Net Server Suite, and Net Client Suite 01-00, 01-01 throug...",
+    "keywords": [
+      "unspecified",
+      "vulnerability",
+      "hitachi",
+      "cobol2002",
+      "developer,",
+      "server",
+      "suite,",
+      "client",
+      "01-00,",
+      "through"
+    ]
+  },
+  {
+    "id": "CVE-2012-4274",
+    "summary": "Unspecified vulnerability in Hitachi Cobol GUI Option 06-00, 06-01 through 06-01-/A, 07-00, 07-01 before 07-01-/B, and 0...",
+    "keywords": [
+      "unspecified",
+      "vulnerability",
+      "hitachi",
+      "option",
+      "06-00,",
+      "through",
+      "06-01-/a,",
+      "07-00,",
+      "before",
+      "07-01-/b,"
+    ]
+  },
+  {
+    "id": "CVE-2019-14468",
+    "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code....",
+    "keywords": [
+      "gnucobol",
+      "buffer",
+      "overflow",
+      "cb_push_op",
+      "cobc/field.c",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2019-14486",
+    "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code....",
+    "keywords": [
+      "gnucobol",
+      "buffer",
+      "overflow",
+      "cb_evaluate_expr",
+      "cobc/field.c",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2019-14528",
+    "summary": "GnuCOBOL 2.2 has a heap-based buffer overflow in read_literal in cobc/scanner.l via crafted COBOL source code....",
+    "keywords": [
+      "gnucobol",
+      "heap-based",
+      "buffer",
+      "overflow",
+      "read_literal",
+      "cobc/scanner.l",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2019-14541",
+    "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in cb_encode_program_id in cobc/typeck.c via crafted COBOL source code....",
+    "keywords": [
+      "gnucobol",
+      "stack-based",
+      "buffer",
+      "overflow",
+      "cb_encode_program_id",
+      "cobc/typeck.c",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2019-16395",
+    "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in the cb_name() function in cobc/tree.c via crafted COBOL source code....",
+    "keywords": [
+      "gnucobol",
+      "stack-based",
+      "buffer",
+      "overflow",
+      "cb_name()",
+      "function",
+      "cobc/tree.c",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2019-16396",
+    "summary": "GnuCOBOL 2.2 has a use-after-free in the end_scope_of_program_name() function in cobc/parser.y via crafted COBOL source ...",
+    "keywords": [
+      "gnucobol",
+      "use-after-free",
+      "end_scope_of_program_name()",
+      "function",
+      "cobc/parser.y",
+      "crafted",
+      "source"
+    ]
+  },
+  {
+    "id": "CVE-2023-32265",
+    "summary": "\nA potential security vulnerability has been identified in the Enterprise Server Common Web Administration (ESCWA) compo...",
+    "keywords": [
+      "potential",
+      "security",
+      "vulnerability",
+      "identified",
+      "enterprise",
+      "server",
+      "common",
+      "administration",
+      "(escwa)",
+      "component"
+    ]
+  },
+  {
+    "id": "CVE-2023-4501",
+    "summary": "User authentication with username and password credentials is ineffective in OpenText (Micro Focus) Visual COBOL, COBOL ...",
+    "keywords": [
+      "authentication",
+      "username",
+      "password",
+      "credentials",
+      "ineffective",
+      "opentext",
+      "(micro",
+      "focus)",
+      "visual",
+      "cobol,"
+    ]
+  }
+]
