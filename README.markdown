@@ -1,255 +1,212 @@
-# CobRA - COBOL Risk Analyzer
+# CobRA: COBOL Risk Analyzer
 
-**CobRA** (COBOL Risk Analyzer) is a static analysis tool designed to identify security vulnerabilities and Common Vulnerabilities and Exposures (CVEs) in COBOL source code. It scans `.cbl` files for issues such as unvalidated input (e.g., `ACCEPT` statements), buffer overflows, and known CVEs associated with COBOL compilers like GnuCOBOL and Micro Focus COBOL. CobRA generates detailed reports in JSON or SARIF format, supports ignoring specific findings with stable unique identifiers (UIDs), and handles code movement with a configurable line tolerance.
+![CobRA Logo](https://github.com/Sdsman16/CobRA/raw/main/logo.png)
+
+CobRA is a Python-based static analysis tool designed to identify vulnerabilities and security risks in COBOL source code. It scans `.cbl` files for issues such as buffer overflows, unvalidated inputs, hardcoded values, weak authentication, and web-related vulnerabilities (e.g., XSS, SQL injection), leveraging the National Vulnerability Database (NVD) API to match code patterns against known CVEs. CobRA provides detailed fix recommendations to help developers remediate issues effectively. It’s ideal for developers and security professionals working with legacy COBOL systems in financial and enterprise environments.
 
 ## Features
 
-- **Vulnerability Detection**: Identifies COBOL-specific issues like unvalidated `ACCEPT` statements and other common vulnerabilities (e.g., XSS, SQL Injection).
-- **CVE Scanning**: Matches code patterns against a local CVE database for known COBOL-related vulnerabilities.
-- **Stable UIDs**: Generates consistent UIDs for findings, enabling reliable ignoring even if code moves (within a ±10 line tolerance by default).
-- **Flexible Output**: Exports results in JSON or SARIF format for integration with CI/CD pipelines or security tools.
-- **Ignore System**: Allows suppression of specific findings via UIDs, with persistence across scans and code changes.
-- **Deduplication**: Removes duplicate findings based on file, message, and line number.
-- **Customizable CLI**: Supports `--quiet` for minimal output, `--verbose` for detailed debugging, and configurable line tolerance.
+- **CVE Detection**: Identifies COBOL constructs that may trigger known vulnerabilities (e.g., CVE-2019-14468, CVE-2023-4501) using NVD API data.
+- **Vulnerability Scanning**: Detects COBOL-specific issues (e.g., unvalidated `ACCEPT`, dynamic `CALL`) and web vulnerabilities (e.g., XSS, SQL injection, CSRF).
+- **Fix Recommendations**: Provides actionable remediation steps for each detected issue, tailored to COBOL development.
+- **Flexible Output**: Generates results in JSON or SARIF formats with detailed findings, including line numbers, severity, CVSS scores, code snippets, and fixes.
+- **Ignore List**: Allows suppression of specific findings via unique IDs (UIDs) stored in `ignore.json`.
+- **Verbose Logging**: Provides detailed debug logs for troubleshooting, saved to `cobra.log`.
+- **Extensible**: Easily extendable with new rules and CVE patterns via `rules.py` and `cve_checker.py`.
 
 ## Installation
 
 ### Prerequisites
 
-- **Python**: Version 3.8 or higher.
-- **Dependencies**: Install required Python packages using `pip`.
+- **Python**: Version 3.8 or higher (tested with Python 3.13).
+- **Dependencies**: `click`, `rich`, `requests`.
+- **Operating System**: Windows, Linux, or macOS (tested on Windows).
 
-### Setup
+### Steps
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-org/cobra.git
-   cd cobra
+   git clone https://github.com/Sdsman16/CobRA.git
+   cd CobRA
    ```
 
 2. **Install Dependencies**:
    ```bash
-   pip install -r requirements.txt
-   ```
-   The `requirements.txt` should include:
-   ```
-   click
-   rich
+   pip install click rich requests
    ```
 
-3. **Initialize the CVE Database**:
-   Populate the local CVE cache:
+3. **Uninstall Global `cobra` Package** (if installed):
+   To avoid conflicts with the global `cobra` package, run:
    ```bash
-   cobra update-cve-db
+   pip uninstall cobra -y
+   ```
+   Manually remove any remnants (Windows):
+   ```bash
+   del C:\Users\sdson\AppData\Local\Programs\Python\Python313\Scripts\cobra.exe
+   rmdir /s /q C:\Users\sdson\AppData\Local\Programs\Python\Python313\Lib\site-packages\cobra
+   ```
+   Verify:
+   ```bash
+   pip list | findstr cobra
+   ```
+   The output should show no `cobra` package.
+
+4. **Clear Python Cache**:
+   ```bash
+   del /s /q C:\Users\sdson\PycharmProjects\CobRA\__pycache__
+   del /s /q C:\Users\sdson\PycharmProjects\CobRA\cobra\__pycache__
    ```
 
-4. **Verify Installation**:
-   Check that CobRA is installed:
+5. **Update CVE Database**:
+   Populate `cve_cache.json` with the latest CVE data:
    ```bash
-   cobra --help
+   python -m cobra.cli update-cve-db
+   ```
+   Check `cobra.log` for:
+   ```
+   CVE database updated successfully. X CVEs cached.
    ```
 
 ## Usage
 
-CobRA provides a command-line interface (CLI) with the following commands:
+CobRA supports scanning individual `.cbl` files or directories for CVEs and vulnerabilities, providing detailed findings with fix recommendations. Results include unique IDs (UIDs) for suppression.
 
-### Scan COBOL Files
+### Commands
 
-Scan a COBOL file or directory for vulnerabilities and CVEs:
+- **Scan Files or Directories**:
+  Scan a COBOL file or directory for CVEs and vulnerabilities:
+  ```bash
+  python -m cobra.cli scan "path/to/file.cbl" --output=results.json --format=json
+  ```
+  ```bash
+  python -m cobra.cli scan "path/to/directory" --verbose --output=results.sarif --format=sarif
+  ```
 
-```bash
-cobra scan <path> [--output <file>] [--format json|sarif] [--line-tolerance <int>] [--quiet] [--verbose]
-```
+- **Update CVE Database**:
+  Refresh the local CVE cache from the NVD API:
+  ```bash
+  python -m cobra.cli update-cve-db
+  ```
 
-- `<path>`: Path to a `.cbl` file or directory containing COBOL files.
-- `--output <file>`: Save results to the specified file (e.g., `results.json`).
-- `--format json|sarif`: Output format (default: JSON if `--output` is specified).
-- `--line-tolerance <int>`: Line number tolerance for matching ignored findings (default: 10).
+- **Ignore a Finding**:
+  Add a finding’s UID to the ignore list:
+  ```bash
+  python -m cobra.cli ignore "abc123" --file="path/to/file.cbl" --vulnerability="CVE-2019-14468" --line=10 --code-snippet="MOVE ..."
+  ```
+
+- **List Ignored Findings**:
+  View or prune ignored findings:
+  ```bash
+  python -m cobra.cli ignore-list
+  ```
+  ```bash
+  python -m cobra.cli ignore-list --prune
+  ```
+
+### Options for `scan`
+
+- `--output=<filename>`: Save results to a file (JSON or SARIF).
+- `--format=<json|sarif>`: Output format (default: console).
+- `--line-tolerance=<int>`: Line number tolerance for matching ignored findings (default: 10).
 - `--quiet`: Suppress non-critical console output.
-- `--verbose`: Show detailed debug logs, including JSON findings.
+- `--verbose`: Show detailed debug logs.
+- `--no-update`: Skip automatic CVE database update.
 
-**Example**:
-```bash
-cobra scan C:\Users\sdson\Downloads\buffer_overflow.cbl --output results1.json --format json
-```
+### Example Output
 
-**Output**:
 ```
 [Debug] Starting scan_directory
-cobra found 43 issues:
-HIGH - C:\Users\sdson\Downloads\buffer_overflow.cbl (line 3): Keyword match for CVE-2019-14468: ... (UID: b9eb4ca0...)
-...
-[Info] Found 43 CVE-related issues.
-[Debug] Starting scan_vulnerabilities
-Unvalidated Input vulnerability found in buffer_overflow.cbl: ACCEPT statement at line 19
-...
+cobra found 28 issues grouped by file:
+
+buffer_overflow.cbl
+  [RED]HIGH[/RED] (line 3): Keyword match for CVE-2019-14468: ... (UID: 7a907042..., CVSS: 7.5)
+    [Fix] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [YELLOW]MEDIUM[/YELLOW] (line 19): Use of ACCEPT statement (unvalidated input). ... (UID: 55640145..., CVSS: 0.0)
+    [Fix] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+[Info] Found 25 CVE-related issues.
 [Info] Found 3 vulnerability issues.
-[Info] Total findings after ignoring: 46
-[Warning] results1.json already exists and will be overwritten.
-[Info] Results exported to results1.json in JSON format.
-[Success] Results have been saved to: C:\Users\sdson\PycharmProjects\CobRA\results1.json
+[Info] Total findings after ignoring: 28
+[Success] Results have been saved to: results.json
 ```
 
-### Update CVE Database
-
-Refresh the local CVE cache:
-
-```bash
-cobra update-cve-db
-```
-
-### Ignore Findings
-
-Suppress a specific finding by its UID:
-
-```bash
-cobra ignore <uid> --file <path> --vulnerability <id> --line <number> --code-snippet <snippet>
-```
-
-- `<uid>`: Unique identifier of the finding (e.g., `f3f84402...`).
-- `--file <path>`: Path to the affected file.
-- `--vulnerability <id>`: Vulnerability type (e.g., `CVE-2019-16395`).
-- `--line <number>`: Line number of the finding.
-- `--code-snippet <snippet>`: Code snippet associated with the finding.
-
-**Example**:
-```bash
-cobra ignore f3f84402... --file "C:\Users\sdson\Downloads\buffer_overflow.cbl" --vulnerability "CVE-2019-16395" --line 32 --code-snippet "* Insecure: this can lead to an overflow..."
-```
-
-### List Ignored Findings
-
-View or prune ignored findings:
-
-```bash
-cobra ignore-list [--prune]
-```
-
-- `--prune`: Remove unmatched ignored findings (requires a scan to identify outdated ignores).
-
-**Example**:
-```bash
-cobra ignore-list
-```
-
-## Output Format
-
-### JSON
-
-When `--format json` is specified, results are saved as a list of findings:
+### Example JSON Output
 
 ```json
 [
     {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "vulnerability": "CVE-2019-16395",
-        "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 has a stack-based buffer overflow...",
-        "severity": "high",
-        "line": 32,
-        "uid": "f3f8440263e5194f7cc7e4ce000277db4d906f512c9409d50539413dcac1862c",
-        "code_snippet": "* Insecure: this can lead to an overflow..."
+        "file": "buffer_overflow.cbl",
+        "vulnerability": "CVE-2019-14468",
+        "message": "Keyword match for CVE-2019-14468: ...",
+        "severity": "High",
+        "line": 3,
+        "uid": "7a907042-...",
+        "code_snippet": "MOVE ...",
+        "cvss_score": 7.5,
+        "fix": "Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths."
     },
-    ...
+    {
+        "file": "buffer_overflow.cbl",
+        "vulnerability": "Unvalidated Input",
+        "message": "Use of ACCEPT statement (unvalidated input) at line 19",
+        "severity": "Medium",
+        "line": 19,
+        "uid": "55640145-...",
+        "code_snippet": "ACCEPT ...",
+        "cvss_score": 0.0,
+        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
+    }
 ]
 ```
 
-### SARIF
-
-When `--format sarif` is specified, results are saved in SARIF 2.1.0 format, compatible with tools like GitHub Code Scanning.
-
-## Configuration
-
-- **Ignore File**: Ignored findings are stored in `ignore.json` in the project root. Example:
-  ```json
-  {
-      "ignored_findings": {
-          "f3f84402...": {
-              "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-              "vulnerability": "CVE-2019-16395",
-              "line": 32,
-              "code_snippet": "* Insecure: this can lead to an overflow..."
-          }
-      }
-  }
-  ```
-
-- **Line Tolerance**: Configure via `--line-tolerance` to allow ignored findings to persist across code movement (default: ±10 lines).
-
-## Logging
-
-CobRA logs debug information to `cobra.log` in the project root, including:
-- Scan start/end times.
-- `run_rules` output structure.
-- Total issues found.
-
-## Development
-
-### Project Structure
-
-```
-cobra/
-├── cobra/
-│   ├── __init__.py
-│   ├── cli.py          # CLI interface
-│   ├── scanner.py      # Core scanning logic
-│   ├── utils.py        # Utility functions (e.g., UID generation)
-│   ├── cve_checker.py  # CVE database management
-│   ├── vuln_checker.py # Vulnerability checks (e.g., XSS, SQL Injection)
-│   ├── rules.py        # Rules for CVE and vulnerability detection
-├── ignore.json         # Ignored findings
-├── cobra.log           # Debug logs
-├── requirements.txt    # Dependencies
-├── README.md           # This file
-```
-
-### Contributing
-
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/xyz`).
-3. Commit changes (`git commit -m "Add feature XYZ"`).
-4. Push to the branch (`git push origin feature/xyz`).
-5. Open a pull request.
-
-### Adding New Rules
-
-To add new vulnerability or CVE rules:
-1. Update `rules.py` with new patterns in `run_rules`.
-2. Test with sample COBOL files.
-3. Update the CVE database if necessary (`cobra update-cve-db`).
-
 ## Troubleshooting
 
+- **Global Package Conflict**:
+  If CobRA runs via `cobra.exe` instead of local files:
+  - Verify: `python -c "import cobra; print(cobra.__file__)"` should point to `C:\Users\sdson\PycharmProjects\CobRA\cobra\__init__.py`.
+  - Re-run uninstall steps above.
+
 - **Empty CVE Database**:
-  - Run `cobra update-cve-db` to populate the cache.
-  - Check `cobra.log` for errors.
+  If no CVEs are detected:
+  - Run: `python -m cobra.cli update-cve-db`.
+  - Check `cve_cache.json` for CVEs (e.g., `CVE-2019-14468`).
+  - Inspect `cobra.log` for API errors.
 
-- **JSON Findings in CLI**:
-  - Avoid `--verbose` unless debugging is needed.
-  - Ensure `cli.py` is updated to the latest version.
+- **File Extension Issues**:
+  Ensure COBOL files end in `.cbl`:
+  ```bash
+  dir path\to\files\*.cbl
+  ```
+  Rename if needed:
+  ```bash
+  ren path\to\files\*.txt *.cbl
+  ```
 
-- **Incorrect Vulnerability IDs**:
-  - Verify `run_rules` returns `id` or `vulnerability` keys.
-  - Check `cobra.log` for `run_rules` output structure.
+- **Low Findings Count**:
+  If fewer findings than expected:
+  - Ensure `cve_cache.json` is updated.
+  - Use `--verbose` to debug rules and matches.
+  - Check `cobra.log` for errors like `Failed to fetch CVE data`.
 
-- **Ignored Findings Not Persisting**:
-  - Confirm `--line-tolerance` is sufficient for code movement.
-  - Check `ignore.json` for correct UID entries.
+- **Logs**:
+  Check `cobra.log` for debugging:
+  - `Fetching CVE data from NVD API...`
+  - `Found CVE ... at ...`
 
-For issues, open a ticket on the [GitHub repository](https://github.com/your-org/cobra/issues) with:
-- Console output.
-- `cobra.log` contents.
-- Sample COBOL file (if possible).
+## Contributing
+
+Contributions are welcome! To contribute:
+1. Fork the repository.
+2. Create a branch: `git checkout -b feature/your-feature`.
+3. Commit changes: `git commit -m "Add your feature"`.
+4. Push:ODS: `git push origin feature/your-feature`.
+5. Open a pull request.
+
+Please include tests and update documentation as needed.
 
 ## License
 
 CobRA is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-## Acknowledgments
+## Contact
 
-- Built with [Click](https://click.palletsprojects.com/) for CLI and [Rich](https://rich.readthedocs.io/) for console formatting.
-- Inspired by the need for robust COBOL security analysis in legacy systems.
-
----
-
-*Maintained by [Your Organization]*  
-*Last updated: April 2025*
+For issues or questions, open an issue on the [GitHub repository](https://github.com/Sdsman16/CobRA).

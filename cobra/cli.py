@@ -1,6 +1,7 @@
 import json
 import os
 import click
+import logging
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves, should_update_cves
 from cobra.utils import generate_uid
@@ -12,10 +13,33 @@ from cobra.vuln_checker import (
     check_for_csrf
 )
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
+
 @click.group()
 def cli():
     """cobra - COBOL Risk Analyzer"""
     pass
+
+def get_fix_recommendation(vulnerability, message):
+    """Return a fix recommendation based on the vulnerability type."""
+    if "CVE-" in vulnerability:
+        if "buffer overflow" in message.lower():
+            return "Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths."
+        return "Review the CVE description for specific mitigation steps and update COBOL runtime or compiler settings accordingly."
+    elif vulnerability == "Unvalidated Input":
+        return "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
+    elif vulnerability == "XSS":
+        return "Sanitize user input and escape output in COBOL DISPLAY statements to prevent script injection."
+    elif vulnerability == "SQL Injection":
+        return "Use parameterized queries or EXEC SQL PREPARE for database operations in COBOL to prevent injection."
+    elif vulnerability == "Command Injection":
+        return "Avoid dynamic CALL statements with user input; use static CALLs or validate inputs strictly."
+    elif vulnerability == "Insecure Cryptographic Storage":
+        return "Use secure COBOL libraries for encryption (e.g., COBOL SSL extensions) and avoid hardcoded keys."
+    elif vulnerability == "CSRF":
+        return "Implement CSRF tokens in COBOL web interactions and validate requests on the server side."
+    return "Review COBOL best practices for secure coding and apply input validation or runtime checks."
 
 @cli.command()
 @click.argument("path")
@@ -205,97 +229,122 @@ def scan_vulnerabilities(path, quiet=False):
         for i, line in enumerate(lines, 1):
             if "ACCEPT" in line.upper():
                 code_snippet = "".join(lines[max(0, i-2):min(len(lines), i+1)]).strip()
-                findings.append({
+                vulnerability = "Unvalidated Input"
+                message = f"Use of ACCEPT statement (unvalidated input) at line {i}"
+                finding = {
                     "file": file_path,
-                    "vulnerability": "Unvalidated Input",
-                    "message": f"Use of ACCEPT statement (unvalidated input) at line {i}",
+                    "vulnerability": vulnerability,
+                    "message": message,
                     "severity": "Medium",
                     "line": i,
-                    "uid": generate_uid(file_path, "Unvalidated Input", i, code_snippet),
-                    "code_snippet": code_snippet
-                })
+                    "uid": generate_uid(file_path, vulnerability, i, code_snippet),
+                    "code_snippet": code_snippet,
+                    "fix": get_fix_recommendation(vulnerability, message)
+                }
+                findings.append(finding)
                 if not quiet:
                     click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
+                    click.echo(f"    [Fix] {finding['fix']}")
 
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(code)
         for issue in xss_issues:
             code_snippet = "N/A"
-            findings.append({
+            vulnerability = "XSS"
+            finding = {
                 "file": file_path,
-                "vulnerability": "XSS",
+                "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "Medium",
                 "line": 0,
-                "uid": generate_uid(file_path, "XSS", 0, code_snippet),
-                "code_snippet": code_snippet
-            })
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
             if not quiet:
                 click.echo(f"XSS vulnerability found in {filename}: {issue}")
+                click.echo(f"    [Fix] {finding['fix']}")
 
         # Check for SQL Injection vulnerabilities
         sql_issues = check_for_sql_injection(code)
         for issue in sql_issues:
             code_snippet = "N/A"
-            findings.append({
+            vulnerability = "SQL Injection"
+            finding = {
                 "file": file_path,
-                "vulnerability": "SQL Injection",
+                "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "High",
                 "line": 0,
-                "uid": generate_uid(file_path, "SQL Injection", 0, code_snippet),
-                "code_snippet": code_snippet
-            })
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
             if not quiet:
                 click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
+                click.echo(f"    [Fix] {finding['fix']}")
 
         # Check for Command Injection vulnerabilities
         command_issues = check_for_command_injection(code)
         for issue in command_issues:
             code_snippet = "N/A"
-            findings.append({
+            vulnerability = "Command Injection"
+            finding = {
                 "file": file_path,
-                "vulnerability": "Command Injection",
+                "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "High",
                 "line": 0,
-                "uid": generate_uid(file_path, "Command Injection", 0, code_snippet),
-                "code_snippet": code_snippet
-            })
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
             if not quiet:
                 click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
+                click.echo(f"    [Fix] {finding['fix']}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
         cryptographic_issues = check_for_insecure_cryptographic_storage(code)
         for issue in cryptographic_issues:
             code_snippet = "N/A"
-            findings.append({
+            vulnerability = "Insecure Cryptographic Storage"
+            finding = {
                 "file": file_path,
-                "vulnerability": "Insecure Cryptographic Storage",
+                "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "Medium",
                 "line": 0,
-                "uid": generate_uid(file_path, "Insecure Cryptographic Storage", 0, code_snippet),
-                "code_snippet": code_snippet
-            })
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
             if not quiet:
                 click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
+                click.echo(f"    [Fix] {finding['fix']}")
 
         # Check for CSRF vulnerabilities
         csrf_issues = check_for_csrf(code)
         for issue in csrf_issues:
             code_snippet = "N/A"
-            findings.append({
+            vulnerability = "CSRF"
+            finding = {
                 "file": file_path,
-                "vulnerability": "CSRF",
+                "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "Medium",
                 "line": 0,
-                "uid": generate_uid(file_path, "CSRF", 0, code_snippet),
-                "code_snippet": code_snippet
-            })
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
             if not quiet:
                 click.echo(f"CSRF vulnerability found in {filename}: {issue}")
+                click.echo(f"    [Fix] {finding['fix']}")
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -361,7 +410,8 @@ def export_results(results, output, format, quiet=False):
                     "properties": {
                         "uid": result.get("uid", "unknown"),
                         "code_snippet": result.get("code_snippet", "N/A"),
-                        "cvss_score": result.get("cvss_score", 0.0)
+                        "cvss_score": result.get("cvss_score", 0.0),
+                        "fix": result.get("fix", "No fix available")
                     }
                 } for result in results]
             }]

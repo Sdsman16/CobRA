@@ -11,6 +11,26 @@ logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime
 
 console = Console()
 
+def get_fix_recommendation(vulnerability, message):
+    """Return a fix recommendation based on the vulnerability type."""
+    if "CVE-" in vulnerability:
+        if "buffer overflow" in message.lower():
+            return "Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths."
+        return "Review the CVE description for specific mitigation steps and update COBOL runtime or compiler settings accordingly."
+    elif vulnerability == "Unvalidated Input":
+        return "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
+    elif vulnerability == "XSS":
+        return "Sanitize user input and escape output in COBOL DISPLAY statements to prevent script injection."
+    elif vulnerability == "SQL Injection":
+        return "Use parameterized queries or EXEC SQL PREPARE for database operations in COBOL to prevent injection."
+    elif vulnerability == "Command Injection":
+        return "Avoid dynamic CALL statements with user input; use static CALLs or validate inputs strictly."
+    elif vulnerability == "Insecure Cryptographic Storage":
+        return "Use secure COBOL libraries for encryption (e.g., COBOL SSL extensions) and avoid hardcoded keys."
+    elif vulnerability == "CSRF":
+        return "Implement CSRF tokens in COBOL web interactions and validate requests on the server side."
+    return "Review COBOL best practices for secure coding and apply input validation or runtime checks."
+
 def deduplicate_findings(findings):
     """Remove duplicate findings based on file, message, line, and vulnerability."""
     seen = set()
@@ -51,6 +71,8 @@ def scan_directory(path, cves, quiet=False):
                 finding["uid"] = generate_uid(file_path, vulnerability, line_number, code_snippet)
                 finding["code_snippet"] = code_snippet
                 finding["cvss_score"] = finding.get("cvss_score", 0.0)
+                # Add fix recommendation
+                finding["fix"] = get_fix_recommendation(vulnerability, finding["message"])
                 local_results.append(finding)
             logging.debug(f"Found {len(findings)} issues in file: {file_path}")
         except Exception as e:
@@ -114,6 +136,7 @@ def scan_directory(path, cves, quiet=False):
                         f"  [{color}]{severity.upper()}[/{color}] (line {finding['line']}): {finding['message']} "
                         f"[cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
                     )
+                    console.print(f"    [bold green]Fix:[/bold green] {finding['fix']}")
 
     logging.debug(f"Total issues found: {len(results)}")
     return results
