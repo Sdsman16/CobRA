@@ -25,10 +25,20 @@ def cli():
 def scan(path, output, format):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     cves = load_cached_cves()
+    if not cves:
+        click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
 
     # Collect CVE results
-    results = scan_directory(path, cves)
-    click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+    try:
+        results = scan_directory(path, cves)
+        if results is None:
+            click.echo("[Error] scan_directory returned None. Check for errors in the scanner or input path.")
+            results = []
+        else:
+            click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+    except Exception as e:
+        click.echo(f"[Error] Failed to scan directory: {str(e)}")
+        results = []
 
     # Collect vulnerability results
     vulnerability_results = scan_vulnerabilities(path)
@@ -68,8 +78,12 @@ def scan_vulnerabilities(path):
 
     def analyze_file(file_path):
         filename = os.path.basename(file_path)
-        with open(file_path, "r", errors="ignore") as file:
-            cobol_code = file.read()
+        try:
+            with open(file_path, "r", errors="ignore") as file:
+                cobol_code = file.read()
+        except IOError as e:
+            click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
+            return
 
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(cobol_code)
