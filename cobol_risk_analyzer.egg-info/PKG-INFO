@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: cobol-risk-analyzer
+Version: 1.0.0
+Summary: CobRA: A COBOL Risk Analyzer for detecting vulnerabilities and providing fix recommendations.
+Home-page: https://github.com/Sdsman16/CobRA
+Author: Sdsman16
+Author-email: your-email@example.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: click
+Requires-Dist: rich
+Requires-Dist: requests
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+CobRA: A COBOL Risk Analyzer for detecting vulnerabilities and providing fix recommendations.

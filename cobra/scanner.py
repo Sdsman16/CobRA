@@ -42,7 +42,7 @@ def deduplicate_findings(findings):
             unique_findings.append(f)
     return unique_findings
 
-def scan_directory(path, cves, quiet=False):
+def scan_directory(path, cves, quiet=False, severity=None, severity_and_lower=None):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities using parallel scanning."""
     results = []
     logging.debug(f"Starting scan_directory for path: {path}")
@@ -110,6 +110,25 @@ def scan_directory(path, cves, quiet=False):
 
     # Deduplicate findings
     results = deduplicate_findings(results)
+
+    # Apply severity filter
+    if severity is not None or severity_and_lower is not None:
+        severity_levels = {"high": 3, "medium": 2, "low": 1}
+        filtered_results = []
+        for result in results:
+            result_severity = result["severity"].lower()
+            result_level = severity_levels.get(result_severity, 0)
+
+            if severity is not None:
+                # Exact severity match
+                if result_severity == severity.lower():
+                    filtered_results.append(result)
+            elif severity_and_lower is not None:
+                # Severity and lower
+                threshold_level = severity_levels.get(severity_and_lower.lower(), 0)
+                if result_level <= threshold_level and result_level > 0:
+                    filtered_results.append(result)
+        results = filtered_results
 
     from collections import defaultdict
 

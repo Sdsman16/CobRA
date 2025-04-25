@@ -9,6 +9,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 - **CVE Detection**: Identifies COBOL constructs that may trigger known vulnerabilities (e.g., CVE-2019-14468, CVE-2023-4501) using NVD API data.
 - **Vulnerability Scanning**: Detects COBOL-specific issues (e.g., unvalidated `ACCEPT`, dynamic `CALL`) and web vulnerabilities (e.g., XSS, SQL injection, CSRF).
 - **Fix Recommendations**: Provides actionable remediation steps for each detected issue, tailored to COBOL development.
+- **Severity Filtering**: Filter findings by severity (`--severity <high|medium|low>`) or show severity and lower (`--severity-and-lower <high|medium|low>`).
 - **Flexible Output**: Generates results in JSON or SARIF formats with detailed findings, including line numbers, severity, CVSS scores, code snippets, and fixes.
 - **Ignore List**: Allows suppression of specific findings via unique IDs (UIDs) stored in `ignore.json`.
 - **Verbose Logging**: Provides detailed debug logs for troubleshooting, saved to `cobra.log`.
@@ -48,7 +49,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 3. **Install CobRA Package**:
    Install CobRA and its dependencies, which will make the `cobra` command available:
    ```bash
-   pip install .
+   pip install -e .
    ```
 
 4. **Clear Python Cache** (if needed):
@@ -81,6 +82,14 @@ CobRA supports scanning individual `.cbl` files or directories for CVEs and vuln
   ```bash
   cobra scan path/to/directory --verbose --output results.sarif --format sarif
   ```
+  Filter by severity (e.g., show only high-severity issues):
+  ```bash
+  cobra scan path/to/directory --severity high --output results.json --format json
+  ```
+  Show severity and lower (e.g., medium and low-severity issues):
+  ```bash
+  cobra scan path/to/directory --severity-and-lower medium --output results.json --format json
+  ```
 
 - **Update CVE Database**:
   Refresh the local CVE cache from the NVD API:
@@ -111,9 +120,12 @@ CobRA supports scanning individual `.cbl` files or directories for CVEs and vuln
 - `--quiet`: Suppress non-critical console output.
 - `--verbose`: Show detailed debug logs.
 - `--no-update`: Skip automatic CVE database update.
+- `--severity <high|medium|low>`: Show only findings of the specified severity.
+- `--severity-and-lower <high|medium|low>`: Show findings of the specified severity and lower (e.g., `--severity-and-lower medium` shows medium and low).
 
 ### Example Output
 
+#### Without Severity Filter
 ```
 [Debug] Starting scan_directory
 cobra found 46 issues grouped by file:
@@ -129,7 +141,35 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Success] Results have been saved to: results.json
 ```
 
-### Example JSON Output
+#### With `--severity high`
+```
+[Debug] Starting scan_directory
+cobra found 25 issues grouped by file:
+
+C:\Users\sdson\Downloads\buffer_overflow.cbl
+  [RED]HIGH[/RED] (line 3): Keyword match for CVE-2019-14468: ... (UID: 7a907042..., CVSS: 7.5)
+    [Fix] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+[Info] Found 25 CVE-related issues.
+[Info] Found 0 vulnerability issues.
+[Info] Total findings after filtering: 25
+[Success] Results have been saved to: results.json
+```
+
+#### With `--severity-and-lower medium`
+```
+[Debug] Starting scan_directory
+cobra found 21 issues grouped by file:
+
+C:\Users\sdson\Downloads\buffer_overflow.cbl
+  [YELLOW]MEDIUM[/YELLOW] (line 19): Use of ACCEPT statement (unvalidated input). ... (UID: 55640145..., CVSS: 0.0)
+    [Fix] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+[Info] Found 18 CVE-related issues.
+[Info] Found 3 vulnerability issues.
+[Info] Total findings after filtering: 21
+[Success] Results have been saved to: results.json
+```
+
+### Example JSON Output (with `--severity high`)
 
 ```json
 [
@@ -143,17 +183,6 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
         "code_snippet": "MOVE ...",
         "cvss_score": 7.5,
         "fix": "Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths."
-    },
-    {
-        "file": "buffer_overflow.cbl",
-        "vulnerability": "Unvalidated Input",
-        "message": "Use of ACCEPT statement (unvalidated input) at line 19",
-        "severity": "Medium",
-        "line": 19,
-        "uid": "55640145-...",
-        "code_snippet": "ACCEPT ...",
-        "cvss_score": 0.0,
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
     }
 ]
 ```
@@ -166,12 +195,12 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
   - Re-run uninstall steps for the global `cobra` package and reinstall CobRA:
     ```bash
     pip uninstall cobra -y
-    pip install .
+    pip install -e .
     ```
 
 - **Command Not Found**:
   If `cobra` command is not recognized:
-  - Ensure CobRA is installed: `pip install .`
+  - Ensure CobRA is installed: `pip install -e .`
   - Verify the Python Scripts directory is in your PATH (Windows):
     ```bash
     echo %PATH%

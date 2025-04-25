@@ -41,6 +41,31 @@ def get_fix_recommendation(vulnerability, message):
         return "Implement CSRF tokens in COBOL web interactions and validate requests on the server side."
     return "Review COBOL best practices for secure coding and apply input validation or runtime checks."
 
+def filter_by_severity(results, severity=None, severity_and_lower=None):
+    """Filter findings based on severity threshold or severity and lower."""
+    if severity is None and severity_and_lower is None:
+        return results
+
+    # Define severity hierarchy
+    severity_levels = {"high": 3, "medium": 2, "low": 1}
+
+    filtered_results = []
+    for result in results:
+        result_severity = result["severity"].lower()
+        result_level = severity_levels.get(result_severity, 0)
+
+        if severity is not None:
+            # Exact severity match
+            if result_severity == severity.lower():
+                filtered_results.append(result)
+        elif severity_and_lower is not None:
+            # Severity and lower
+            threshold_level = severity_levels.get(severity_and_lower.lower(), 0)
+            if result_level <= threshold_level and result_level > 0:
+                filtered_results.append(result)
+
+    return filtered_results
+
 @cli.command()
 @click.argument("directory")
 @click.option("--output", type=click.Path(), help="Path to save results.")
@@ -49,8 +74,14 @@ def get_fix_recommendation(vulnerability, message):
 @click.option("--quiet", is_flag=True, help="Suppress all non-critical console output during scan.")
 @click.option("--verbose", is_flag=True, help="Show detailed debug logs of findings.")
 @click.option("--no-update", is_flag=True, help="Skip automatic CVE database update.")
-def scan(directory, output, format, line_tolerance, quiet, verbose, no_update):
+@click.option("--severity", type=click.Choice(["high", "medium", "low"], case_sensitive=False), help="Show only findings of the specified severity.")
+@click.option("--severity-and-lower", type=click.Choice(["high", "medium", "low"], case_sensitive=False), help="Show findings of the specified severity and lower.")
+def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, severity, severity_and_lower):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
+    # Validate mutually exclusive options
+    if severity is not None and severity_and_lower is not None:
+        raise click.UsageError("Options --severity and --severity-and-lower are mutually exclusive.")
+
     # Update CVE database unless --no-update is specified
     if not no_update and should_update_cves():
         if not quiet:
@@ -120,8 +151,11 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update):
     if not quiet and unmatched_ignores:
         click.echo(f"[Warning] {len(unmatched_ignores)} ignored findings no longer match any vulnerabilities. Run 'cobra ignore-list' to review.")
 
+    # Apply severity filter
+    results = filter_by_severity(results, severity=severity, severity_and_lower=severity_and_lower)
+
     if not quiet:
-        click.echo(f"[Info] Total findings after ignoring: {len(results)}")
+        click.echo(f"[Info] Total findings after filtering: {len(results)}")
     if verbose:
         click.echo("[Debug] Results before export:")
         for result in results:
@@ -130,7 +164,7 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update):
     # Export results if output is specified
     if output:
         if not quiet and os.path.exists(output):
-            click.echo(f"[Warning] {output} already exists and will be overwritten.")
+            click.echo(f"[Warning] {output} already exists even after filtering and will be overwritten.")
         elif not quiet:
             click.echo(f"[Info] Creating new file: {output}")
 
