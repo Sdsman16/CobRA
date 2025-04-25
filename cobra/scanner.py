@@ -82,7 +82,7 @@ def scan_directory(path, cves):
         console.print(f"[bold red]cobra found {len(results)} issues:[/bold red]")
         for finding in results:
             console.print(
-                f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding messaggio: [cyan](UID: {finding['uid']})[/cyan]"
+                f"[red]{finding['severity'].upper()}[/red] - {finding['file']} (line {finding['line']}): {finding['message']} [cyan](UID: {finding['uid']})[/cyan]"
             )
         logging.debug(f"Total issues found: {len(results)}")
 
