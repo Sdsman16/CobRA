@@ -5,8 +5,7 @@ from rich.console import Console
 
 console = Console()
 
-
-def scan_directory(path, cves):
+def scan_vulnerabilities(path, cves):
     results = []
 
     # If the path is a directory, walk through all files
