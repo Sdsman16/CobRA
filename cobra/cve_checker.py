@@ -14,56 +14,115 @@ def fetch_cves():
     """Fetch and cache CVE data from the NVD API."""
     try:
         logging.debug("Fetching CVE data from NVD API...")
-        # NVD API endpoint with query parameters to filter COBOL-related CVEs
+        cve_data = []
         url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
         params = {
-            "keywordSearch": "cobol gnucobol visual cobol",  # Search for COBOL-related terms
-            "resultsPerPage": 2000,  # Max results per page (NVD limit)
-            "startIndex": 0  # Start at the beginning
+            "keywordSearch": "cobol gnucobol visual cobol micro focus cobc",  # Broader keywords
+            "resultsPerPage": 2000,  # Max results per page
+            "startIndex": 0
         }
         headers = {
             "User-Agent": "CobRA/1.0 (COBOL Risk Analyzer)"
         }
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
 
-        cve_data = []
-        for item in data.get("vulnerabilities", []):
-            cve = item.get("cve", {})
-            cve_id = cve.get("id", "")
-            summary = cve.get("descriptions", [{}])[0].get("value", "No description available")
-            # Extract CVSS score (use v3.1 or v3.0 if available)
-            cvss_score = 0.0
-            for metric in cve.get("metrics", {}).values():
-                for m in metric:
-                    if "cvssData" in m and "baseScore" in m["cvssData"]:
-                        cvss_score = m["cvssData"]["baseScore"]
+        # Handle pagination
+        while True:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            vulnerabilities = data.get("vulnerabilities", [])
+            total_results = data.get("totalResults", 0)
+
+            for item in vulnerabilities:
+                cve = item.get("cve", {})
+                cve_id = cve.get("id", "")
+                summary = cve.get("descriptions", [{}])[0].get("value", "No description available")
+                # Extract CVSS score
+                cvss_score = 0.0
+                for metric in cve.get("metrics", {}).values():
+                    for m in metric:
+                        if "cvssData" in m and "baseScore" in m["cvssData"]:
+                            cvss_score = m["cvssData"]["baseScore"]
+                            break
+                    if cvss_score:
                         break
-                if cvss_score:
-                    break
-            # Extract keywords from summary
-            keywords = []
-            summary_lower = summary.lower()
-            for term in ["buffer overflow", "stack-based", "authentication", "username", "password", "user-id", "gnucobol", "visual cobol", "cobol", "cobc/field.c", "cobc/tree.c"]:
-                if term in summary_lower:
-                    keywords.append(term)
-            # Add additional keywords based on CVE context
-            if "gnucobol" in summary_lower:
-                keywords.append("cobc")
-            if "visual cobol" in summary_lower:
-                keywords.append("micro focus")
-            # Ensure unique keywords
-            keywords = list(set(keywords))
+                # Extract keywords
+                keywords = []
+                summary_lower = summary.lower()
+                for term in [
+                    "buffer overflow", "stack-based", "authentication", "username", "password",
+                    "user-id", "gnucobol", "visual cobol", "cobol", "cobc/field.c", "cobc/tree.c",
+                    "scanner.l", "typeck.c", "micro focus", "cobc"
+                ]:
+                    if term in summary_lower:
+                        keywords.append(term)
+                keywords = list(set(keywords))
 
-            cve_data.append({
-                "id": cve_id,
-                "keywords": keywords,
-                "summary": summary,
-                "cvss_score": cvss_score
-            })
+                cve_data.append({
+                    "id": cve_id,
+                    "keywords": keywords,
+                    "summary": summary,
+                    "cvss_score": cvss_score
+                })
 
-        # Save to cache with timestamp
+            # Check for more results
+            params["startIndex"] += params["resultsPerPage"]
+            if params["startIndex"] >= total_results:
+                break
+
+        # Fallback: Add prior CVEs if too few fetched
+        if len(cve_data) < 10:
+            logging.warning("NVD API returned fewer CVEs than expected. Adding fallback CVEs.")
+            fallback_cves = [
+                {
+                    "id": "CVE-2019-14486",
+                    "keywords": ["buffer overflow", "gnucobol", "cobc/field.c", "cobol"],
+                    "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code.",
+                    "cvss_score": 7.5
+                },
+                {
+                    "id": "CVE-2019-14528",
+                    "keywords": ["buffer overflow", "gnucobol", "scanner.l", "cobol"],
+                    "summary": "GnuCOBOL 2.2 has a heap-based buffer overflow in read_literal in cobc/scanner.l via crafted COBOL source code.",
+                    "cvss_score": 7.5
+                },
+                {
+                    "id": "CVE-2019-14541",
+                    "keywords": ["buffer overflow", "gnucobol", "typeck.c", "cobol"],
+                    "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in cb_encode_program_id in cobc/typeck.c via crafted COBOL source code.",
+                    "cvss_score": 7.5
+                },
+                {
+                    "id": "CVE-2012-0918",
+                    "keywords": ["cobol", "hitachi"],
+                    "summary": "Unspecified vulnerability in Hitachi COBOL2002 Net Developer, Net Server Suite, and Net Client Suite.",
+                    "cvss_score": 5.0
+                },
+                {
+                    "id": "CVE-2012-4274",
+                    "keywords": ["cobol", "hitachi"],
+                    "summary": "Unspecified vulnerability in Hitachi Cobol GUI Option.",
+                    "cvss_score": 5.0
+                },
+                {
+                    "id": "CVE-2023-32265",
+                    "keywords": ["cobol", "micro focus", "escwa"],
+                    "summary": "A potential security vulnerability in the Enterprise Server Common Web Administration (ESCWA) component.",
+                    "cvss_score": 6.5
+                },
+                {
+                    "id": "CVE-2001-0208",
+                    "keywords": ["cobol", "microfocus"],
+                    "summary": "MicroFocus Cobol 4.1 with AppTrack feature installs mfaslmf directory with insecure permissions.",
+                    "cvss_score": 4.6
+                }
+            ]
+            existing_ids = {cve["id"] for cve in cve_data}
+            for fallback_cve in fallback_cves:
+                if fallback_cve["id"] not in existing_ids:
+                    cve_data.append(fallback_cve)
+
+        # Save to cache
         cache_data = {
             "last_updated": int(time.time()),
             "cves": cve_data

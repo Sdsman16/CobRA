@@ -41,6 +41,16 @@
     },
     {
         "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
+        "line": 9,
+        "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
+        "severity": "High",
+        "vulnerability": "CVE-2019-14468",
+        "cvss_score": 7.5,
+        "uid": "ba0942a1ed4d4876490c2fdb7b0352e748212f91819193a7025b9904e0b11622",
+        "code_snippet": "DATA DIVISION.\n       WORKING-STORAGE SECTION."
+    },
+    {
+        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
         "line": 10,
         "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
         "severity": "High",
@@ -111,6 +121,16 @@
     },
     {
         "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
+        "line": 9,
+        "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
+        "severity": "High",
+        "vulnerability": "CVE-2019-16395",
+        "cvss_score": 7.8,
+        "uid": "09ecaf3becbe10b48c79bd47beea2b6fb6003c9bd34abeeec436d126bdb1f630",
+        "code_snippet": "DATA DIVISION.\n       WORKING-STORAGE SECTION."
+    },
+    {
+        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
         "line": 10,
         "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
         "severity": "High",
@@ -168,6 +188,36 @@
         "cvss_score": 7.8,
         "uid": "f007d9d8ac87b88e81495585d76b9606efc790da4c16058326bda9e27fabf364",
         "code_snippet": "* Here, we are copying the user input into a fixed-size buffer (possible vulnerability)\n           MOVE FULLNAME TO ERROR-MESSAGE"
+    },
+    {
+        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
+        "line": 12,
+        "message": "Keyword match for CVE-2023-4501: Ineffective authentication in OpenText (Micro Focus) Visual COBOL.",
+        "severity": "High",
+        "vulnerability": "CVE-2023-4501",
+        "cvss_score": 6.5,
+        "uid": "04b3ad28b8af3c696038098697f6d3630fb6237f96b21bbbe5134b27ff840068",
+        "code_snippet": "01  USERNAME            PIC X(10).  * A buffer of size 10\n       01  PASSWORD            PIC X(20).  * A buffer of size 20\n       01  FULLNAME            PIC X(50).  * A buffer for a long string"
+    },
+    {
+        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
+        "line": 21,
+        "message": "Keyword match for CVE-2023-4501: Ineffective authentication in OpenText (Micro Focus) Visual COBOL.",
+        "severity": "High",
+        "vulnerability": "CVE-2023-4501",
+        "cvss_score": 6.5,
+        "uid": "994e4617ebc3250290d5651ee40f59a1f7103166349abb861b0b06427581aad5",
+        "code_snippet": "DISPLAY \"Enter your password (max 20 characters): \"\n           ACCEPT PASSWORD"
+    },
+    {
+        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
+        "line": 22,
+        "message": "Keyword match for CVE-2023-4501: Ineffective authentication in OpenText (Micro Focus) Visual COBOL.",
+        "severity": "High",
+        "vulnerability": "CVE-2023-4501",
+        "cvss_score": 6.5,
+        "uid": "a92d4a05c8494ec04fc7c223b4878ea867d825e68f592003aff47ba62f632144",
+        "code_snippet": "DISPLAY \"Enter your password (max 20 characters): \"\n           ACCEPT PASSWORD"
     },
     {
         "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
