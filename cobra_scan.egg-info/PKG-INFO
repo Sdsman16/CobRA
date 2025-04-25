@@ -1,0 +1,17 @@
+Metadata-Version: 2.2
+Name: cobra-scan
+Version: 0.1
+Summary: cobra - COBOL Risk Analyzer
+Author: Your Name
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.10
+Requires-Dist: click
+Requires-Dist: rich
+Requires-Dist: requests
+Dynamic: author
+Dynamic: classifier
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
