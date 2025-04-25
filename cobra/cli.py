@@ -28,18 +28,22 @@ def scan(path, output, format):
 
     # Collect CVE results
     results = scan_directory(path, cves)
+    click.echo(f"[Info] Found {len(results)} CVE-related issues.")
 
     # Collect vulnerability results
     vulnerability_results = scan_vulnerabilities(path)
+    click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
 
-    # If there are vulnerabilities, add them to the results
-    if vulnerability_results:
-        results += vulnerability_results
-        click.echo(f"[Info] Found vulnerabilities: {len(vulnerability_results)}")
-    else:
-        click.echo("[Info] No vulnerabilities found.")
+    # Combine results
+    results.extend(vulnerability_results)
+    click.echo(f"[Info] Total findings: {len(results)}")
 
-    # Check if output file exists and warn user
+    # Debug: Print results to verify contents
+    click.echo("[Debug] Results before export:")
+    for result in results:
+        click.echo(result)
+
+    # Export results if output is specified
     if output:
         if os.path.exists(output):
             click.echo(f"[Warning] {output} already exists and will be overwritten.")
@@ -47,10 +51,7 @@ def scan(path, output, format):
             click.echo(f"[Info] Creating new file: {output}")
 
         # Export results to the requested format
-        from cobra.exporter import export_results
         export_results(results, output, format)
-
-        # Inform the user that the file has been saved and where
         click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
 
 
@@ -63,7 +64,7 @@ def update_cve_db():
 
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
-    findings = []  # This will collect the vulnerability results
+    findings = []  # Collect structured vulnerability results
 
     def analyze_file(file_path):
         filename = os.path.basename(file_path)
@@ -72,43 +73,58 @@ def scan_vulnerabilities(path):
 
         # Check for XSS vulnerabilities
         xss_issues = check_for_xss(cobol_code)
-        if xss_issues:
-            findings.append(f"[{filename}] Potential XSS Vulnerabilities:")
-            for issue in xss_issues:
-                findings.append(f"- {issue}")
-            click.echo(f"XSS vulnerabilities found in {filename}: {xss_issues}")
+        for issue in xss_issues:
+            findings.append({
+                "file": file_path,
+                "vulnerability": "XSS",
+                "details": issue,
+                "severity": "Medium"
+            })
+            click.echo(f"XSS vulnerability found in {filename}: {issue}")
 
         # Check for SQL Injection vulnerabilities
         sql_issues = check_for_sql_injection(cobol_code)
-        if sql_issues:
-            findings.append(f"[{filename}] Potential SQL Injection Vulnerabilities:")
-            for issue in sql_issues:
-                findings.append(f"- {issue}")
-            click.echo(f"SQL Injection vulnerabilities found in {filename}: {sql_issues}")
+        for issue in sql_issues:
+            findings.append({
+                "file": file_path,
+                "vulnerability": "SQL Injection",
+                "details": issue,
+                "severity": "High"
+            })
+            click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
 
         # Check for Command Injection vulnerabilities
         command_issues = check_for_command_injection(cobol_code)
-        if command_issues:
-            findings.append(f"[{filename}] Potential Command Injection Vulnerabilities:")
-            for issue in command_issues:
-                findings.append(f"- {issue}")
-            click.echo(f"Command Injection vulnerabilities found in {filename}: {command_issues}")
+        for issue in command_issues:
+            findings.append({
+                "file": file_path,
+                "vulnerability": "Command Injection",
+                "details": issue,
+                "severity": "High"
+            })
+            click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
 
         # Check for Insecure Cryptographic Storage vulnerabilities
         cryptographic_issues = check_for_insecure_cryptographic_storage(cobol_code)
-        if cryptographic_issues:
-            findings.append(f"[{filename}] Potential Insecure Cryptographic Storage Issues:")
-            for issue in cryptographic_issues:
-                findings.append(f"- {issue}")
-            click.echo(f"Insecure Cryptographic Storage issues found in {filename}: {cryptographic_issues}")
+        for issue in cryptographic_issues:
+            findings.append({
+                "file": file_path,
+                "vulnerability": "Insecure Cryptographic Storage",
+                "details": issue,
+                "severity": "Medium"
+            })
+            click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
 
         # Check for CSRF vulnerabilities
         csrf_issues = check_for_csrf(cobol_code)
-        if csrf_issues:
-            findings.append(f"[{filename}] Potential CSRF Vulnerabilities:")
-            for issue in csrf_issues:
-                findings.append(f"- {issue}")
-            click.echo(f"CSRF vulnerabilities found in {filename}: {csrf_issues}")
+        for issue in csrf_issues:
+            findings.append({
+                "file": file_path,
+                "vulnerability": "CSRF",
+                "details": issue,
+                "severity": "Medium"
+            })
+            click.echo(f"CSRF vulnerability found in {filename}: {issue}")
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -124,24 +140,25 @@ def scan_vulnerabilities(path):
     else:
         click.echo(f"[Error] {path} is not a valid file or directory.")
 
-    # Return the collected findings
-    if findings:
-        click.echo(f"[Info] Collected {len(findings)} findings.")
-    else:
-        click.echo("[Info] No vulnerabilities found.")
-
     return findings
 
 
 def export_results(results, output, format):
     """Export the scan results to the specified format (JSON/SARIF)."""
+    if not results:
+        click.echo("[Warning] No results to export.")
+        return
+
     if format == "json":
-        with open(output, "w") as json_file:
-            json.dump(results, json_file, indent=4)
-        click.echo(f"[Info] Results exported to {output} in JSON format.")
+        try:
+            with open(output, "w") as json_file:
+                json.dump(results, json_file, indent=4)
+            click.echo(f"[Info] Results exported to {output} in JSON format.")
+        except IOError as e:
+            click.echo(f"[Error] Failed to write JSON file: {str(e)}")
 
     elif format == "sarif":
-        # For SARIF, create a SARIF-compatible structure
+        # Create SARIF-compatible structure
         sarif_results = {
             "version": "2.1.0",
             "runs": [{
@@ -152,17 +169,27 @@ def export_results(results, output, format):
                     }
                 },
                 "results": [{
+                    "level": result.get("severity", "warning").lower(),
                     "message": {
-                        "text": result
-                    }
+                        "text": f"{result.get('vulnerability', 'Unknown')}: {result.get('details', 'No details')}"
+                    },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": result.get("file", "unknown")
+                            }
+                        }
+                    }]
                 } for result in results]
             }]
         }
 
-        # Write SARIF output
-        with open(output, "w") as sarif_file:
-            json.dump(sarif_results, sarif_file, indent=4)
-        click.echo(f"[Info] Results exported to {output} in SARIF format.")
+        try:
+            with open(output, "w") as sarif_file:
+                json.dump(sarif_results, sarif_file, indent=4)
+            click.echo(f"[Info] Results exported to {output} in SARIF format.")
+        except IOError as e:
+            click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
 
 
 if __name__ == "__main__":
