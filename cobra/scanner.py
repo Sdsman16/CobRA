@@ -103,8 +103,15 @@ def scan_directory(path, cves, quiet=False):
             for file, findings in findings_by_file.items():
                 console.print(f"\n[bold underline]{file}[/bold underline]")
                 for finding in findings:
+                    severity = finding["severity"].capitalize()
+                    if severity == "High":
+                        color = "red"
+                    elif severity == "Medium":
+                        color = "yellow"
+                    else:
+                        color = "white"
                     console.print(
-                        f"  [red]{finding['severity'].upper()}[/red] (line {finding['line']}): {finding['message']} "
+                        f"  [{color}]{severity.upper()}[/{color}] (line {finding['line']}): {finding['message']} "
                         f"[cyan](UID: {finding['uid'][:8]}..., CVSS: {finding['cvss_score']})[/cyan]"
                     )
 
