@@ -17,16 +17,20 @@ def cli():
 
 @cli.command()
 @click.argument("path")
-def scan(path):
+@click.option("--output", type=click.Path(), help="Path to save results.")
+@click.option("--format", type=click.Choice(["json", "sarif"]), help="Export format.")
+def scan(path, output, format):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
-    # Load the CVE data
     cves = load_cached_cves()
 
-    # Scan the file or directory for CVE vulnerabilities
-    scan_directory(path, cves)
+    # Collect results
+    results = scan_directory(path, cves) or []
+    results += scan_vulnerabilities(path)
 
-    # Check for additional vulnerabilities
-    scan_vulnerabilities(path)
+    # Export if requested
+    if output and format:
+        from cobra.exporter import export_results
+        export_results(results, output, format)
 
 @cli.command()
 def update_cve_db():
@@ -36,46 +40,34 @@ def update_cve_db():
 
 def scan_vulnerabilities(path):
     """Check COBOL files for common vulnerabilities."""
+    findings = []
 
     def analyze_file(file_path):
         filename = os.path.basename(file_path)
         with open(file_path, "r", errors="ignore") as file:
             cobol_code = file.read()
 
-        # Check for XSS vulnerabilities
-        xss_issues = check_for_xss(cobol_code)
-        if xss_issues:
-            print(f"[{filename}] Potential XSS Vulnerabilities:")
-            for issue in xss_issues:
-                print(f"- {issue}")
+        checks = [
+            ("xss", "XSS", check_for_xss),
+            ("sql_injection", "SQL Injection", check_for_sql_injection),
+            ("command_injection", "Command Injection", check_for_command_injection),
+            ("crypto", "Insecure Cryptographic Storage", check_for_insecure_cryptographic_storage),
+            ("csrf", "CSRF", check_for_csrf)
+        ]
 
-        # Check for SQL Injection vulnerabilities
-        sql_issues = check_for_sql_injection(cobol_code)
-        if sql_issues:
-            print(f"[{filename}] Potential SQL Injection Vulnerabilities:")
-            for issue in sql_issues:
-                print(f"- {issue}")
-
-        # Check for Command Injection vulnerabilities
-        command_issues = check_for_command_injection(cobol_code)
-        if command_issues:
-            print(f"[{filename}] Potential Command Injection Vulnerabilities:")
-            for issue in command_issues:
-                print(f"- {issue}")
-
-        # Check for Insecure Cryptographic Storage vulnerabilities
-        cryptographic_issues = check_for_insecure_cryptographic_storage(cobol_code)
-        if cryptographic_issues:
-            print(f"[{filename}] Potential Insecure Cryptographic Storage Issues:")
-            for issue in cryptographic_issues:
-                print(f"- {issue}")
-
-        # Check for CSRF vulnerabilities
-        csrf_issues = check_for_csrf(cobol_code)
-        if csrf_issues:
-            print(f"[{filename}] Potential CSRF Vulnerabilities:")
-            for issue in csrf_issues:
-                print(f"- {issue}")
+        for vuln_type, description, func in checks:
+            issues = func(cobol_code)
+            if issues:
+                print(f"[{filename}] Potential {description} Vulnerabilities:")
+                for issue in issues:
+                    print(f"- {issue}")
+                    findings.append({
+                        "file": file_path,
+                        "line": 1,  # You can improve this if you want to locate actual line
+                        "message": issue,
+                        "severity": "HIGH",  # Default, or improve with detection logic
+                        "type": vuln_type
+                    })
 
     # Handle both file and directory input
     if os.path.isdir(path):
@@ -90,3 +82,5 @@ def scan_vulnerabilities(path):
             print(f"[Error] {path} is not a .cbl file.")
     else:
         print(f"[Error] {path} is not a valid file or directory.")
+
+    return findings
