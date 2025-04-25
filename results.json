@@ -1,39 +1,6 @@
 [
     {
         "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "line": 19,
-        "message": "Use of ACCEPT statement (unvalidated input). Consider validating input length.",
-        "severity": "Medium",
-        "vulnerability": "Unvalidated Input",
-        "uid": "556401452124e536c2f7572e640da40c5338b61e35020f993a1721b3e4905247",
-        "code_snippet": "DISPLAY \"Enter your username (max 10 characters): \"\n           ACCEPT USERNAME",
-        "cvss_score": 0.0,
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "line": 22,
-        "message": "Use of ACCEPT statement (unvalidated input). Consider validating input length.",
-        "severity": "Medium",
-        "vulnerability": "Unvalidated Input",
-        "uid": "fd6123aa11c6c97d4561175dc70bf04fb8fa8ecf9b8a8e54901abda5d16d2a47",
-        "code_snippet": "DISPLAY \"Enter your password (max 20 characters): \"\n           ACCEPT PASSWORD",
-        "cvss_score": 0.0,
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "line": 25,
-        "message": "Use of ACCEPT statement (unvalidated input). Consider validating input length.",
-        "severity": "Medium",
-        "vulnerability": "Unvalidated Input",
-        "uid": "f2a78282cc557f9f8173c5b3326c73e68a01a1f9c1577c6d9c1e3c74fd46da5e",
-        "code_snippet": "DISPLAY \"Enter your full name (max 50 characters): \"\n           ACCEPT FULLNAME",
-        "cvss_score": 0.0,
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
         "line": 3,
         "message": "Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code.",
         "severity": "High",
@@ -284,35 +251,5 @@
         "uid": "c6e5e120371eca4a4dd6582a09dad76f43451d1b245e86a022444c05f2ccf172",
         "code_snippet": "DATA DIVISION.\n       WORKING-STORAGE SECTION.\n       01  USERNAME            PIC X(10).  * A buffer of size 10",
         "fix": "Review the CVE description for specific mitigation steps and update COBOL runtime or compiler settings accordingly."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "vulnerability": "Unvalidated Input",
-        "message": "Use of ACCEPT statement (unvalidated input) at line 19",
-        "severity": "Medium",
-        "line": 19,
-        "uid": "556401452124e536c2f7572e640da40c5338b61e35020f993a1721b3e4905247",
-        "code_snippet": "DISPLAY \"Enter your username (max 10 characters): \"\n           ACCEPT USERNAME",
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "vulnerability": "Unvalidated Input",
-        "message": "Use of ACCEPT statement (unvalidated input) at line 22",
-        "severity": "Medium",
-        "line": 22,
-        "uid": "fd6123aa11c6c97d4561175dc70bf04fb8fa8ecf9b8a8e54901abda5d16d2a47",
-        "code_snippet": "DISPLAY \"Enter your password (max 20 characters): \"\n           ACCEPT PASSWORD",
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
-    },
-    {
-        "file": "C:\\Users\\sdson\\Downloads\\buffer_overflow.cbl",
-        "vulnerability": "Unvalidated Input",
-        "message": "Use of ACCEPT statement (unvalidated input) at line 25",
-        "severity": "Medium",
-        "line": 25,
-        "uid": "f2a78282cc557f9f8173c5b3326c73e68a01a1f9c1577c6d9c1e3c74fd46da5e",
-        "code_snippet": "DISPLAY \"Enter your full name (max 50 characters): \"\n           ACCEPT FULLNAME",
-        "fix": "Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length."
     }
 ]

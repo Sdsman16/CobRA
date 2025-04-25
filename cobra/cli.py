@@ -12,9 +12,12 @@ from cobra.vuln_checker import (
     check_for_insecure_cryptographic_storage,
     check_for_csrf
 )
+from rich.console import Console
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
+
+console = Console()
 
 @click.group()
 def cli():
@@ -85,48 +88,48 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, s
     # Update CVE database unless --no-update is specified
     if not no_update and should_update_cves():
         if not quiet:
-            click.echo("[Info] Updating CVE database...")
+            console.print("[bold blue][Info] Updating CVE database...[/bold blue]")
         fetch_cves()
     cves = load_cached_cves()
     if not quiet and not cves:
-        click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
+        console.print("[bold yellow][Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.[/bold yellow]")
 
     # Load ignored findings
     ignored_findings = load_ignored_uids()
     if not quiet and ignored_findings:
-        click.echo(f"[Info] Loaded {len(ignored_findings)} ignored findings.")
+        console.print(f"[bold blue][Info] Loaded {len(ignored_findings)} ignored findings.[/bold blue]")
 
     # Collect CVE results
     if not quiet:
-        click.echo("[Debug] Starting scan_directory")
+        console.print("[bold blue][Debug] Starting scan_directory[/bold blue]")
     try:
-        results = scan_directory(directory, cves, quiet=quiet)
+        results = scan_directory(directory, cves, quiet=quiet, severity=severity, severity_and_lower=severity_and_lower)
         if results is None:
             if not quiet:
-                click.echo("[Error] scan_directory returned None. Check for errors in the scanner or input path.")
+                console.print("[bold red][Error] scan_directory returned None. Check for errors in the scanner or input path.[/bold red]")
             results = []
         else:
             if not quiet:
-                click.echo(f"[Info] Found {len(results)} CVE-related issues.")
+                console.print(f"[bold blue][Info] Found {len(results)} CVE-related issues after severity filtering.[/bold blue]")
             if verbose:
-                click.echo("[Debug] CVE results:")
+                console.print("[bold blue][Debug] CVE results:[/bold blue]")
                 for result in results:
-                    click.echo(result)
+                    console.print(result)
     except Exception as e:
         if not quiet:
-            click.echo(f"[Error] Failed to scan directory: {str(e)}")
+            console.print(f"[bold red][Error] Failed to scan directory: {str(e)}[/bold red]")
         results = []
 
     # Collect vulnerability results
     if not quiet:
-        click.echo("[Debug] Starting scan_vulnerabilities")
+        console.print("[bold blue][Debug] Starting scan_vulnerabilities[/bold blue]")
     vulnerability_results = scan_vulnerabilities(directory, quiet=quiet)
     if not quiet:
-        click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
+        console.print(f"[bold blue][Info] Found {len(vulnerability_results)} vulnerability issues before severity filtering.[/bold blue]")
     if verbose:
-        click.echo("[Debug] Vulnerability results:")
+        console.print("[bold blue][Debug] Vulnerability results:[/bold blue]")
         for result in vulnerability_results:
-            click.echo(result)
+            console.print(result)
 
     # Combine results
     results.extend(vulnerability_results)
@@ -149,35 +152,37 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, s
 
     # Warn about unmatched ignored findings
     if not quiet and unmatched_ignores:
-        click.echo(f"[Warning] {len(unmatched_ignores)} ignored findings no longer match any vulnerabilities. Run 'cobra ignore-list' to review.")
+        console.print(f"[bold yellow][Warning] {len(unmatched_ignores)} ignored findings no longer match any vulnerabilities. Run 'cobra ignore-list' to review.[/bold yellow]")
 
-    # Apply severity filter
+    # Apply severity filter to combined results
+    total_before_filter = len(results)
     results = filter_by_severity(results, severity=severity, severity_and_lower=severity_and_lower)
 
     if not quiet:
-        click.echo(f"[Info] Total findings after filtering: {len(results)}")
+        console.print(f"[bold blue][Info] Total findings before filtering: {total_before_filter}[/bold blue]")
+        console.print(f"[bold blue][Info] Total findings after severity filtering: {len(results)}[/bold blue]")
     if verbose:
-        click.echo("[Debug] Results before export:")
+        console.print("[bold blue][Debug] Results before export:[/bold blue]")
         for result in results:
-            click.echo(result)
+            console.print(result)
 
     # Export results if output is specified
     if output:
         if not quiet and os.path.exists(output):
-            click.echo(f"[Warning] {output} already exists even after filtering and will be overwritten.")
+            console.print(f"[bold yellow][Warning] {output} already exists even after filtering and will be overwritten.[/bold yellow]")
         elif not quiet:
-            click.echo(f"[Info] Creating new file: {output}")
+            console.print(f"[bold blue][Info] Creating new file: {output}[/bold blue]")
 
         # Export results to the requested format
         export_results(results, output, format, quiet=quiet)
         if not quiet:
-            click.echo(f"[Success] Results have been saved to: {os.path.abspath(output)}")
+            console.print(f"[bold green][Success] Results have been saved to: {os.path.abspath(output)}[/bold green]")
 
 @cli.command()
 def update_cve_db():
     """Update the local CVE cache."""
     fetch_cves()
-    click.echo("CVE database updated.")
+    console.print("[bold green]CVE database updated.[/bold green]")
 
 @cli.command()
 @click.argument("uid")
@@ -198,11 +203,11 @@ def ignore(uid, file, vulnerability, line, code_snippet):
         try:
             with open("ignore.json", "w") as f:
                 json.dump({"ignored_findings": ignored_findings}, f, indent=4)
-            click.echo(f"[Success] UID {uid} added to ignore list.")
+            console.print(f"[bold green][Success] UID {uid} added to ignore list.[/bold green]")
         except IOError as e:
-            click.echo(f"[Error] Failed to update ignore.json: {str(e)}")
+            console.print(f"[bold red][Error] Failed to update ignore.json: {str(e)}[/bold red]")
     else:
-        click.echo(f"[Info] UID {uid} is already in the ignore list.")
+        console.print(f"[bold blue][Info] UID {uid} is already in the ignore list.[/bold blue]")
 
 @cli.command()
 @click.option("--prune", is_flag=True, help="Remove unmatched ignored findings.")
@@ -210,254 +215,7 @@ def ignore_list(prune):
     """List all ignored findings and optionally prune unmatched ones."""
     ignored_findings = load_ignored_uids()
     if not ignored_findings:
-        click.echo("[Info] No ignored findings.")
+        console.print("[bold blue][Info] No ignored findings.[/bold blue]")
         return
 
-    click.echo("[Info] Ignored findings:")
-    for uid, details in ignored_findings.items():
-        click.echo(
-            f"UID: {uid}, File: {details['file']}, Vulnerability: {details['vulnerability']}, "
-            f"Line: {details['line']}, Snippet: {details['code_snippet'][:50]}..."
-        )
-
-    if prune:
-        click.echo("[Warning] Pruning requires a scan to identify unmatched findings. Run 'cobra scan' to detect outdated ignores.")
-
-def load_ignored_uids():
-    """Load the dictionary of ignored findings from ignore.json."""
-    try:
-        if not os.path.exists("ignore.json"):
-            # Initialize empty ignore.json
-            with open("ignore.json", "w") as f:
-                json.dump({"ignored_findings": {}}, f)
-            logging.info("Created empty ignore.json")
-            return {}
-        with open("ignore.json", "r") as f:
-            data = json.load(f)
-            return data.get("ignored_findings", {})
-    except (IOError, json.JSONDecodeError) as e:
-        logging.warning(f"Failed to load ignore.json: {str(e)}. Initializing empty ignore list.")
-        try:
-            with open("ignore.json", "w") as f:
-                json.dump({"ignored_findings": {}}, f)
-        except IOError as e:
-            logging.error(f"Failed to create ignore.json: {str(e)}")
-        return {}
-
-def scan_vulnerabilities(path, quiet=False):
-    """Check COBOL files for common vulnerabilities."""
-    findings = []
-
-    def analyze_file(file_path):
-        filename = os.path.basename(file_path)
-        try:
-            with open(file_path, "r", errors="ignore") as file:
-                lines = file.readlines()
-            code = "".join(lines)
-        except IOError as e:
-            if not quiet:
-                click.echo(f"[Error] Failed to read {file_path}: {str(e)}")
-            return
-
-        # Check for COBOL-specific vulnerabilities (e.g., ACCEPT statements)
-        for i, line in enumerate(lines, 1):
-            if "ACCEPT" in line.upper():
-                code_snippet = "".join(lines[max(0, i-2):min(len(lines), i+1)]).strip()
-                vulnerability = "Unvalidated Input"
-                message = f"Use of ACCEPT statement (unvalidated input) at line {i}"
-                finding = {
-                    "file": file_path,
-                    "vulnerability": vulnerability,
-                    "message": message,
-                    "severity": "Medium",
-                    "line": i,
-                    "uid": generate_uid(file_path, vulnerability, i, code_snippet),
-                    "code_snippet": code_snippet,
-                    "fix": get_fix_recommendation(vulnerability, message)
-                }
-                findings.append(finding)
-                if not quiet:
-                    click.echo(f"Unvalidated Input vulnerability found in {filename}: ACCEPT statement at line {i}")
-                    click.echo(f"    [Fix] {finding['fix']}")
-
-        # Check for XSS vulnerabilities
-        xss_issues = check_for_xss(code)
-        for issue in xss_issues:
-            code_snippet = "N/A"
-            vulnerability = "XSS"
-            finding = {
-                "file": file_path,
-                "vulnerability": vulnerability,
-                "message": issue,
-                "severity": "Medium",
-                "line": 0,
-                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
-                "code_snippet": code_snippet,
-                "fix": get_fix_recommendation(vulnerability, issue)
-            }
-            findings.append(finding)
-            if not quiet:
-                click.echo(f"XSS vulnerability found in {filename}: {issue}")
-                click.echo(f"    [Fix] {finding['fix']}")
-
-        # Check for SQL Injection vulnerabilities
-        sql_issues = check_for_sql_injection(code)
-        for issue in sql_issues:
-            code_snippet = "N/A"
-            vulnerability = "SQL Injection"
-            finding = {
-                "file": file_path,
-                "vulnerability": vulnerability,
-                "message": issue,
-                "severity": "High",
-                "line": 0,
-                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
-                "code_snippet": code_snippet,
-                "fix": get_fix_recommendation(vulnerability, issue)
-            }
-            findings.append(finding)
-            if not quiet:
-                click.echo(f"SQL Injection vulnerability found in {filename}: {issue}")
-                click.echo(f"    [Fix] {finding['fix']}")
-
-        # Check for Command Injection vulnerabilities
-        command_issues = check_for_command_injection(code)
-        for issue in command_issues:
-            code_snippet = "N/A"
-            vulnerability = "Command Injection"
-            finding = {
-                "file": file_path,
-                "vulnerability": vulnerability,
-                "message": issue,
-                "severity": "High",
-                "line": 0,
-                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
-                "code_snippet": code_snippet,
-                "fix": get_fix_recommendation(vulnerability, issue)
-            }
-            findings.append(finding)
-            if not quiet:
-                click.echo(f"Command Injection vulnerability found in {filename}: {issue}")
-                click.echo(f"    [Fix] {finding['fix']}")
-
-        # Check for Insecure Cryptographic Storage vulnerabilities
-        cryptographic_issues = check_for_insecure_cryptographic_storage(code)
-        for issue in cryptographic_issues:
-            code_snippet = "N/A"
-            vulnerability = "Insecure Cryptographic Storage"
-            finding = {
-                "file": file_path,
-                "vulnerability": vulnerability,
-                "message": issue,
-                "severity": "Medium",
-                "line": 0,
-                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
-                "code_snippet": code_snippet,
-                "fix": get_fix_recommendation(vulnerability, issue)
-            }
-            findings.append(finding)
-            if not quiet:
-                click.echo(f"Insecure Cryptographic Storage issue found in {filename}: {issue}")
-                click.echo(f"    [Fix] {finding['fix']}")
-
-        # Check for CSRF vulnerabilities
-        csrf_issues = check_for_csrf(code)
-        for issue in csrf_issues:
-            code_snippet = "N/A"
-            vulnerability = "CSRF"
-            finding = {
-                "file": file_path,
-                "vulnerability": vulnerability,
-                "message": issue,
-                "severity": "Medium",
-                "line": 0,
-                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
-                "code_snippet": code_snippet,
-                "fix": get_fix_recommendation(vulnerability, issue)
-            }
-            findings.append(finding)
-            if not quiet:
-                click.echo(f"CSRF vulnerability found in {filename}: {issue}")
-                click.echo(f"    [Fix] {finding['fix']}")
-
-    # Handle both file and directory input
-    if os.path.isdir(path):
-        for root, _, files in os.walk(path):
-            for file in files:
-                if file.endswith(".cbl"):
-                    analyze_file(os.path.join(root, file))
-    elif os.path.isfile(path):
-        if path.endswith(".cbl"):
-            analyze_file(path)
-        else:
-            if not quiet:
-                click.echo(f"[Error] {path} is not a .cbl file.")
-    else:
-        if not quiet:
-            click.echo(f"[Error] {path} is not a valid file or directory.")
-
-    return findings
-
-def export_results(results, output, format, quiet=False):
-    """Export the scan results to the specified format (JSON/SARIF)."""
-    if not results:
-        if not quiet:
-            click.echo("[Warning] No results to export.")
-        return
-
-    if format == "json":
-        try:
-            with open(output, "w") as json_file:
-                json.dump(results, json_file, indent=4)
-            if not quiet:
-                click.echo(f"[Info] Results exported to {output} in JSON format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write JSON file: {str(e)}")
-
-    elif format == "sarif":
-        # Create SARIF-compatible structure
-        sarif_results = {
-            "version": "2.1.0",
-            "runs": [{
-                "tool": {
-                    "driver": {
-                        "name": "cobra",
-                        "version": "1.0"
-                    }
-                },
-                "results": [{
-                    "ruleId": result.get("vulnerability", "Unknown"),
-                    "level": result.get("severity", "warning").lower(),
-                    "message": {
-                        "text": result.get("message", "No details")
-                    },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": result.get("file", "unknown")
-                            },
-                            "region": {
-                                "startLine": result.get("line", 1)
-                            }
-                        }
-                    }],
-                    "properties": {
-                        "uid": result.get("uid", "unknown"),
-                        "code_snippet": result.get("code_snippet", "N/A"),
-                        "cvss_score": result.get("cvss_score", 0.0),
-                        "fix": result.get("fix", "No fix available")
-                    }
-                } for result in results]
-            }]
-        }
-
-        try:
-            with open(output, "w") as sarif_file:
-                json.dump(sarif_results, sarif_file, indent=4)
-            if not quiet:
-                click.echo(f"[Info] Results exported to {output} in SARIF format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
-
-if __name__ == "__main__":
-    cli()
+    console
