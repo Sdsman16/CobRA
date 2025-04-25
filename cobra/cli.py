@@ -2,7 +2,7 @@ import json
 import os
 import click
 from cobra.scanner import scan_directory
-from cobra.cve_checker import fetch_cves, load_cached_cves
+from cobra.cve_checker import fetch_cves, load_cached_cves, should_update_cves
 from cobra.utils import generate_uid
 from cobra.vuln_checker import (
     check_for_xss,
@@ -26,8 +26,14 @@ def cli():
 @click.option("--line-tolerance", type=int, default=10, help="Line number tolerance for matching ignored findings.")
 @click.option("--quiet", is_flag=True, help="Suppress all non-critical console output during scan.")
 @click.option("--verbose", is_flag=True, help="Show detailed debug logs of findings.")
-def scan(path, output, format, line_tolerance, quiet, verbose):
+@click.option("--no-update", is_flag=True, help="Skip automatic CVE database update.")
+def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
+    # Update CVE database unless --no-update is specified
+    if not no_update and should_update_cves():
+        if not quiet:
+            click.echo("[Info] Updating CVE database...")
+        fetch_cves()
     cves = load_cached_cves()
     if not quiet and not cves:
         click.echo("[Warning] CVE database is empty. Run 'cobra update-cve-db' to populate it.")
@@ -49,8 +55,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose):
         else:
             if not quiet:
                 click.echo(f"[Info] Found {len(results)} CVE-related issues.")
-            # Only print detailed findings if verbose and not exporting
-            if verbose and not output:
+            if verbose:
                 click.echo("[Debug] CVE results:")
                 for result in results:
                     click.echo(result)
@@ -65,7 +70,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose):
     vulnerability_results = scan_vulnerabilities(path, quiet=quiet)
     if not quiet:
         click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
-    if verbose and not output:
+    if verbose:
         click.echo("[Debug] Vulnerability results:")
         for result in vulnerability_results:
             click.echo(result)
@@ -95,7 +100,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose):
 
     if not quiet:
         click.echo(f"[Info] Total findings after ignoring: {len(results)}")
-    if verbose and not output:
+    if verbose:
         click.echo("[Debug] Results before export:")
         for result in results:
             click.echo(result)
