@@ -152,20 +152,9 @@ def export_results(results, output, format):
                     }
                 },
                 "results": [{
-                    "ruleId": "CVE-XXXX-XXXX",  # Replace with actual CVE ID if needed
                     "message": {
                         "text": result
-                    },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": "file://" + result
-                            },
-                            "region": {
-                                "startLine": 1  # Just an example, modify accordingly
-                            }
-                        }
-                    }]
+                    }
                 } for result in results]
             }]
         }
