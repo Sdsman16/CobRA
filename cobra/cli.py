@@ -2,6 +2,7 @@ import json
 import os
 import click
 import logging
+import sys
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves, should_update_cves
 from cobra.utils import generate_uid
@@ -189,6 +190,18 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, s
         console.print("[bold blue][Debug] Results before export:[/bold blue]")
         for result in results:
             console.print(result)
+
+    # Check if vulnerabilities were found and break the build if necessary
+    if results:
+        if severity is not None:
+            console.print(f"[bold red][Error] Found {len(results)} vulnerabilities of severity '{severity.upper()}'. Breaking the build.[/bold red]")
+            sys.exit(1)  # Exit with non-zero status to break the build
+        elif severity_and_lower is not None:
+            console.print(f"[bold red][Error] Found {len(results)} vulnerabilities of severity '{severity_and_lower.upper()}' or lower. Breaking the build.[/bold red]")
+            sys.exit(1)  # Exit with non-zero status to break the build
+        else:
+            console.print(f"[bold red][Error] Found {len(results)} vulnerabilities. Breaking the build.[/bold red]")
+            sys.exit(1)  # Exit with non-zero status to break the build
 
     # Export results if output is specified
     if output:
