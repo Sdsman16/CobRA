@@ -69,6 +69,30 @@ def filter_by_severity(results, severity=None, severity_and_lower=None):
 
     return filtered_results
 
+def load_ignored_uids():
+    """Load the dictionary of ignored findings from ignore.json."""
+    try:
+        if not os.path.exists("ignore.json"):
+            # Initialize empty ignore.json
+            with open("ignore.json", "w") as f:
+                json.dump({"ignored_findings": {}}, f)
+            logging.info("Created empty ignore.json")
+            console.print("[bold blue][Info] Created empty ignore.json[/bold blue]")
+            return {}
+        with open("ignore.json", "r") as f:
+            data = json.load(f)
+            return data.get("ignored_findings", {})
+    except (IOError, json.JSONDecodeError) as e:
+        logging.warning(f"Failed to load ignore.json: {str(e)}. Initializing empty ignore list.")
+        console.print(f"[bold yellow][Warning] Failed to load ignore.json: {str(e)}. Initializing empty ignore list.[/bold yellow]")
+        try:
+            with open("ignore.json", "w") as f:
+                json.dump({"ignored_findings": {}}, f)
+        except IOError as e:
+            logging.error(f"Failed to create ignore.json: {str(e)}")
+            console.print(f"[bold red][Error] Failed to create ignore.json: {str(e)}[/bold red]")
+        return {}
+
 @cli.command()
 @click.argument("directory")
 @click.option("--output", type=click.Path(), help="Path to save results.")
@@ -218,4 +242,212 @@ def ignore_list(prune):
         console.print("[bold blue][Info] No ignored findings.[/bold blue]")
         return
 
-    console
+    console.print("[bold blue][Info] Ignored findings:[/bold blue]")
+    for uid, details in ignored_findings.items():
+        console.print(
+            f"UID: {uid}, File: {details['file']}, Vulnerability: {details['vulnerability']}, "
+            f"Line: {details['line']}, Snippet: {details['code_snippet'][:50]}..."
+        )
+
+    if prune:
+        console.print("[bold yellow][Warning] Pruning requires a scan to identify unmatched findings. Run 'cobra scan' to detect outdated ignores.[/bold yellow]")
+
+def scan_vulnerabilities(path, quiet=False):
+    """Check COBOL files for common vulnerabilities."""
+    findings = []
+
+    def analyze_file(file_path):
+        filename = os.path.basename(file_path)
+        try:
+            with open(file_path, "r", errors="ignore") as file:
+                lines = file.readlines()
+            code = "".join(lines)
+        except IOError as e:
+            if not quiet:
+                console.print(f"[bold red][Error] Failed to read {file_path}: {str(e)}[/bold red]")
+            return
+
+        # Check for COBOL-specific vulnerabilities (e.g., ACCEPT statements)
+        for i, line in enumerate(lines, 1):
+            if "ACCEPT" in line.upper():
+                code_snippet = "".join(lines[max(0, i-2):min(len(lines), i+1)]).strip()
+                vulnerability = "Unvalidated Input"
+                message = f"Use of ACCEPT statement (unvalidated input) at line {i}. Consider validating input length."
+                finding = {
+                    "file": file_path,
+                    "vulnerability": vulnerability,
+                    "message": message,
+                    "severity": "Medium",
+                    "line": i,
+                    "uid": generate_uid(file_path, vulnerability, i, code_snippet),
+                    "code_snippet": code_snippet,
+                    "fix": get_fix_recommendation(vulnerability, message)
+                }
+                findings.append(finding)
+
+        # Check for XSS vulnerabilities
+        xss_issues = check_for_xss(code)
+        for issue in xss_issues:
+            code_snippet = "N/A"
+            vulnerability = "XSS"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for SQL Injection vulnerabilities
+        sql_issues = check_for_sql_injection(code)
+        for issue in sql_issues:
+            code_snippet = "N/A"
+            vulnerability = "SQL Injection"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Command Injection vulnerabilities
+        command_issues = check_for_command_injection(code)
+        for issue in command_issues:
+            code_snippet = "N/A"
+            vulnerability = "Command Injection"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Insecure Cryptographic Storage vulnerabilities
+        cryptographic_issues = check_for_insecure_cryptographic_storage(code)
+        for issue in cryptographic_issues:
+            code_snippet = "N/A"
+            vulnerability = "Insecure Cryptographic Storage"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for CSRF vulnerabilities
+        csrf_issues = check_for_csrf(code)
+        for issue in csrf_issues:
+            code_snippet = "N/A"
+            vulnerability = "CSRF"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "Medium",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+    # Handle both file and directory input
+    if os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for file in files:
+                if file.endswith(".cbl"):
+                    analyze_file(os.path.join(root, file))
+    elif os.path.isfile(path):
+        if path.endswith(".cbl"):
+            analyze_file(path)
+        else:
+            if not quiet:
+                console.print(f"[bold red][Error] {path} is not a .cbl file.[/bold red]")
+    else:
+        if not quiet:
+            console.print(f"[bold red][Error] {path} is not a valid file or directory.[/bold red]")
+
+    return findings
+
+def export_results(results, output, format, quiet=False):
+    """Export the scan results to the specified format (JSON/SARIF)."""
+    if not results:
+        if not quiet:
+            console.print("[bold yellow][Warning] No results to export.[/bold yellow]")
+        return
+
+    if format == "json":
+        try:
+            with open(output, "w") as json_file:
+                json.dump(results, json_file, indent=4)
+            if not quiet:
+                console.print(f"[bold blue][Info] Results exported to {output} in JSON format.[/bold blue]")
+        except IOError as e:
+            console.print(f"[bold red][Error] Failed to write JSON file: {str(e)}[/bold red]")
+
+    elif format == "sarif":
+        # Create SARIF-compatible structure
+        sarif_results = {
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": "cobra",
+                        "version": "1.0"
+                    }
+                },
+                "results": [{
+                    "ruleId": result.get("vulnerability", "Unknown"),
+                    "level": result.get("severity", "warning").lower(),
+                    "message": {
+                        "text": result.get("message", "No details")
+                    },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": result.get("file", "unknown")
+                            },
+                            "region": {
+                                "startLine": result.get("line", 1)
+                            }
+                        }
+                    }],
+                    "properties": {
+                        "uid": result.get("uid", "unknown"),
+                        "code_snippet": result.get("code_snippet", "N/A"),
+                        "cvss_score": result.get("cvss_score", 0.0),
+                        "fix": result.get("fix", "No fix available")
+                    }
+                } for result in results]
+            }]
+        }
+
+        try:
+            with open(output, "w") as sarif_file:
+                json.dump(sarif_results, sarif_file, indent=4)
+            if not quiet:
+                console.print(f"[bold blue][Info] Results exported to {output} in SARIF format.[/bold blue]")
+        except IOError as e:
+            console.print(f"[bold red][Error] Failed to write SARIF file: {str(e)}[/bold red]")
+
+if __name__ == "__main__":
+    cli()
