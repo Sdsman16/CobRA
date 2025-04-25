@@ -11,6 +11,7 @@ cobra/cve_checker.py
 cobra/rules.py
 cobra/scanner.py
 cobra/utils.py
+cobra/vuln_checker.py
 cobra_scan.egg-info/PKG-INFO
 cobra_scan.egg-info/SOURCES.txt
 cobra_scan.egg-info/dependency_links.txt

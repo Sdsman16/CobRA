@@ -1,3 +1,4 @@
+import os  # Make sure to import os
 import click
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves
