@@ -70,7 +70,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
         click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
     if verbose:
         click.echo("[Debug] Vulnerability results:")
-        for result in results:
+        for result in vulnerability_results:  # Fixed: Use vulnerability_results
             click.echo(result)
 
     # Combine results
@@ -314,66 +314,3 @@ def scan_vulnerabilities(path, quiet=False):
             click.echo(f"[Error] {path} is not a valid file or directory.")
 
     return findings
-
-def export_results(results, output, format, quiet=False):
-    """Export the scan results to the specified format (JSON/SARIF)."""
-    if not results:
-        if not quiet:
-            click.echo("[Warning] No results to export.")
-        return
-
-    if format == "json":
-        try:
-            with open(output, "w") as json_file:
-                json.dump(results, json_file, indent=4)
-            if not quiet:
-                click.echo(f"[Info] Results exported to {output} in JSON format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write JSON file: {str(e)}")
-
-    elif format == "sarif":
-        # Create SARIF-compatible structure
-        sarif_results = {
-            "version": "2.1.0",
-            "runs": [{
-                "tool": {
-                    "driver": {
-                        "name": "cobra",
-                        "version": "1.0"
-                    }
-                },
-                "results": [{
-                    "ruleId": result.get("vulnerability", "Unknown"),
-                    "level": result.get("severity", "warning").lower(),
-                    "message": {
-                        "text": result.get("message", "No details")
-                    },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": result.get("file", "unknown")
-                            },
-                            "region": {
-                                "startLine": result.get("line", 1)
-                            }
-                        }
-                    }],
-                    "properties": {
-                        "uid": result.get("uid", "unknown"),
-                        "code_snippet": result.get("code_snippet", "N/A"),
-                        "cvss_score": result.get("cvss_score", 0.0)
-                    }
-                } for result in results]
-            }]
-        }
-
-        try:
-            with open(output, "w") as sarif_file:
-                json.dump(sarif_results, sarif_file, indent=4)
-            if not quiet:
-                click.echo(f"[Info] Results exported to {output} in SARIF format.")
-        except IOError as e:
-            click.echo(f"[Error] Failed to write SARIF file: {str(e)}")
-
-if __name__ == "__main__":
-    cli()
