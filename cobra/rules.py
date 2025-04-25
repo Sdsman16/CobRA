@@ -4,6 +4,7 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
 
+
 def run_rules(code, filename, cves):
     """
     Apply rules to detect CVEs and vulnerabilities in COBOL code.
@@ -73,13 +74,13 @@ def run_rules(code, filename, cves):
     cve_patterns = [
         {
             "id": "CVE-2019-14468",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+)",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
             "message": "Keyword match for CVE-2019-14468: GnuCOBOL 2.2 buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
             "severity": "High"
         },
         {
             "id": "CVE-2019-16395",
-            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+)",
+            "pattern": r"(PROGRAM-ID\.|WORKING-STORAGE\s+SECTION\.|MOVE\s+[A-Z0-9-]+\s+TO\s+[A-Z0-9-]+|ACCEPT\s+[A-Z0-9-]+|PROCEDURE\s+DIVISION\.)",
             "message": "Keyword match for CVE-2019-16395: GnuCOBOL 2.2 stack-based buffer overflow in cb_name() in cobc/tree.c via crafted COBOL source code.",
             "severity": "High"
         },

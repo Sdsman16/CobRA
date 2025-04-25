@@ -2,7 +2,7 @@ import json
 import os
 import time
 import logging
-import requests  # Assuming CVE data is fetched via an API
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, filename="cobra.log", format="%(asctime)s - %(levelname)s - %(message)s")
@@ -14,10 +14,31 @@ def fetch_cves():
     """Fetch and cache CVE data from a source (e.g., NVD API)."""
     try:
         logging.debug("Fetching CVE data...")
-        # Example: Fetch from NVD API (replace with actual source, e.g., NIST NVD)
-        response = requests.get("https://services.nvd.nist.gov/rest/json/cves/2.0", timeout=10)
-        response.raise_for_status()
-        cve_data = response.json().get("vulnerabilities", [])
+        # Mock data for testing; replace with actual API call
+        cve_data = [
+            {
+                "id": "CVE-2019-14468",
+                "keywords": ["buffer overflow", "gnucobol", "cobc/field.c"],
+                "summary": "GnuCOBOL 2.2 has a buffer overflow in cb_push_op in cobc/field.c via crafted COBOL source code.",
+                "cvss_score": 7.5
+            },
+            {
+                "id": "CVE-2019-16395",
+                "keywords": ["stack-based buffer overflow", "gnucobol", "cobc/tree.c"],
+                "summary": "GnuCOBOL 2.2 has a stack-based buffer overflow in the cb_name() function in cobc/tree.c via crafted COBOL source code.",
+                "cvss_score": 7.8
+            },
+            {
+                "id": "CVE-2023-4501",
+                "keywords": ["authentication", "visual cobol", "username", "password"],
+                "summary": "User authentication with username and password credentials is ineffective in OpenText (Micro Focus) Visual COBOL.",
+                "cvss_score": 6.5
+            }
+        ]
+        # Example: Fetch from NVD API (uncomment for real use)
+        # response = requests.get("https://services.nvd.nist.gov/rest/json/cves/2.0", timeout=10)
+        # response.raise_for_status()
+        # cve_data = response.json().get("vulnerabilities", [])
 
         # Save to cache with timestamp
         cache_data = {

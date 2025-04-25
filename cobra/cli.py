@@ -70,7 +70,7 @@ def scan(path, output, format, line_tolerance, quiet, verbose, no_update):
         click.echo(f"[Info] Found {len(vulnerability_results)} vulnerability issues.")
     if verbose:
         click.echo("[Debug] Vulnerability results:")
-        for result in vulnerability_results:
+        for result in results:
             click.echo(result)
 
     # Combine results

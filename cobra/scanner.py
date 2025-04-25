@@ -41,10 +41,10 @@ def scan_directory(path, cves, quiet=False):
                 start_line = max(0, line_number - 2)  # 1-based to 0-based
                 end_line = min(len(lines), line_number + 1)
                 code_snippet = "".join(lines[start_line:end_line]).strip()
-                # Handle missing keys, prioritize 'vulnerability' or 'id'
-                vulnerability = finding.get("vulnerability", finding.get("id"))
+                # Handle vulnerability field
+                vulnerability = finding.get("vulnerability")
                 if not vulnerability:
-                    # Extract CVE ID from message (e.g., "Keyword match for CVE-2019-14468: ...")
+                    # Extract CVE ID from message if no vulnerability
                     message = finding.get("message", "")
                     cve_match = re.search(r"CVE-\d{4}-\d{4,}", message)
                     vulnerability = cve_match.group(0) if cve_match else "Unknown"
