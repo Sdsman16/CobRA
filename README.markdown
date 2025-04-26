@@ -1,12 +1,21 @@
 # CobRA: COBOL Risk Analyzer
 
+![CobRA Logo](https://github.com/Sdsman16/CobRA/raw/main/logo.png)
 
 CobRA is a Python-based static analysis tool designed to identify vulnerabilities and security risks in COBOL source code. It scans `.cbl` files for issues such as buffer overflows, unvalidated inputs, hardcoded values, weak authentication, and web-related vulnerabilities (e.g., XSS, SQL injection), leveraging the National Vulnerability Database (NVD) API to match code patterns against known CVEs. CobRA provides detailed fix recommendations and can be integrated into CI/CD pipelines to enforce security policies by breaking builds when vulnerabilities are detected. It’s ideal for developers and security professionals working with legacy COBOL systems in financial and enterprise environments.
 
 ## Features
 
 - **CVE Detection**: Identifies COBOL constructs that may trigger known vulnerabilities (e.g., CVE-2019-14486, CVE-2023-32265) using NVD API data.
-- **Vulnerability Scanning**: Detects COBOL-specific issues (e.g., unvalidated `ACCEPT`, dynamic `CALL`) and web vulnerabilities (e.g., XSS, SQL injection, CSRF).
+- **Vulnerability Scanning**: Detects a wide range of COBOL-specific and web-related vulnerabilities:
+  - **Unvalidated Input**: Identifies `ACCEPT` statements without input validation.
+  - **File Handling Issues**: Detects dynamic file names in `SELECT` statements (potential file traversal) and unclosed files (resource exhaustion).
+  - **Hardcoded Sensitive Data**: Finds hardcoded credentials, keys, or sensitive data like SSNs in `WORKING-STORAGE SECTION`.
+  - **Arithmetic Overflows**: Checks for missing `ON SIZE ERROR` clauses in arithmetic operations and potential divide-by-zero in `DIVIDE` statements.
+  - **Insecure Data Transmission**: Identifies network interactions without SSL/HTTPS.
+  - **Improper Error Handling**: Detects missing `ON ERROR` or `AT END` clauses and error blocks that might disclose information.
+  - **Insecure Session Management**: Finds web-enabled COBOL code lacking secure session tokens.
+  - **Web Vulnerabilities**: Includes XSS, SQL injection, command injection, insecure cryptographic storage, and CSRF in web-enabled COBOL applications.
 - **Fix Recommendations**: Provides actionable remediation steps for each detected issue, tailored to COBOL development.
 - **Severity Filtering**: Filter findings by severity (`--severity=<high|medium|low>`) or show severity and lower (`--severity-and-lower=<high|medium|low>`). Filtering applies to both console output and exported results.
 - **Delta Comparison**: Compare current scan results with previous results (`--delta=<path>`) to identify net new vulnerabilities and fail the build if any are found.
@@ -189,8 +198,12 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
   [yellow]MEDIUM[/yellow] (line 19): Use of ACCEPT statement (unvalidated input). Consider validating input length. (UID: 55640145..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+  [red]HIGH[/red] (line 50): Potential Hardcoded Sensitive Data: Possible credential or sensitive data. (UID: 789abcde..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys.
+  [yellow]MEDIUM[/yellow] (line 60): Potential File Traversal: Dynamic file name in SELECT statement. (UID: 1234efgh..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
 [Info] Found 23 CVE-related issues after severity filtering.
-[Info] Found 3 vulnerability issues before severity filtering.
+[Info] Found 23 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 46
 [Info] Total findings after severity filtering: 46
 [Error] Found 46 vulnerabilities. Breaking the build.
@@ -206,6 +219,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
   [red]HIGH[/red] (line 9): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: 5883df6f..., CVSS: 7.5)
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
 [Info] Found 23 CVE-related issues after severity filtering.
 [Info] Found 3 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 26
@@ -213,8 +228,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Found 2 net new vulnerabilities compared to previous scan.
   [red]HIGH[/red] (line 3): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: bab64cc5..., CVSS: 7.5)
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
-  [red]HIGH[/red] (line 9): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: 5883df6f..., CVSS: 7.5)
-    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
 [Error] Found 2 net new vulnerabilities. Breaking the build.
 ```
 
@@ -228,13 +243,15 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
   [yellow]MEDIUM[/yellow] (line 22): Use of ACCEPT statement (unvalidated input). Consider validating input length. (UID: fd6123aa..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+  [yellow]MEDIUM[/yellow] (line 80): Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation. (UID: 9012mnop..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully.
 [Info] Found 18 CVE-related issues after severity filtering.
 [Info] Found 3 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 21
 [Info] Found 1 net new vulnerability compared to previous scan.
-  [yellow]MEDIUM[/yellow] (line 22): Use of ACCEPT statement (unvalidated input). Consider validating input length. (UID: fd6123aa..., CVSS: 0.0)
-    [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+  [yellow]MEDIUM[/yellow] (line 80): Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation. (UID: 9012mnop..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully.
 [Error] Found 1 net new vulnerability. Breaking the build.
 ```
 
@@ -281,6 +298,17 @@ cobra found no vulnerabilities!
         "code_snippet": "MOVE ...",
         "cvss_score": 7.5,
         "fix": "Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths."
+    },
+    {
+        "file": "buffer_overflow.cbl",
+        "vulnerability": "Hardcoded Sensitive Data",
+        "message": "Potential Hardcoded Sensitive Data: Possible credential or sensitive data.",
+        "severity": "High",
+        "line": 0,
+        "uid": "789abcde-...",
+        "code_snippet": "N/A",
+        "cvss_score": 0.0,
+        "fix": "Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys."
     }
 ]
 ```
@@ -325,10 +353,15 @@ cobra found no vulnerabilities!
   ```
 
 - **Low Findings Count**:
-  If fewer findings than expected:
-  - Ensure `cve_cache.json` is updated.
-  - Use `--verbose` to debug rules and matches.
-  - Check `cobra.log` for errors like `Failed to fetch CVE data`.
+  If fewer findings than expected (e.g., CVE count drops from 43 to 28):
+  - **Check Ignore List**: Open `ignore.json` to see if UIDs of missing CVEs are listed. Run `cobra ignore-list --prune` to remove outdated ignores.
+  - **Verify CVE Database**: Compare the current `cve_cache.json` with a previous version. Check CVSS scores of relevant CVEs (e.g., `CVE-2019-14486`). If scores dropped below 7.0, they may no longer be classified as "High" under `--severity=high`.
+  - **Update CVE Database**: Run `cobra update-cve-db` to refresh `cve_cache.json`. Check `cobra.log` for errors like "Failed to fetch CVE data."
+  - **Debug with Verbose**: Run the scan with `--verbose` to see detailed logs of CVE matching and filtering:
+    ```bash
+    cobra scan path/to/directory --severity=high --verbose --output=results.json --format=json
+    ```
+  - **Check Test File**: Ensure the COBOL file (e.g., `buffer_overflow.cbl`) hasn’t changed, as modified keywords can reduce CVE matches.
 
 - **CI/CD Build Not Breaking**:
   If the build doesn’t break despite vulnerabilities:
