@@ -69,7 +69,7 @@ def get_fix_recommendation(vulnerability, message):
             """
             PROCEDURE DIVISION.
                 MOVE FUNCTION UPPER-CASE(USER-INPUT) TO SANITIZED-INPUT
-                INSPECT SANITIZED-INPUT REPLACING ALL "<" BY "&lt;"
+                INSPECT SANITIZED-INPUT REPLACING ALL "<" BY "<"
                 DISPLAY SANITIZED-INPUT
             """
         ),
@@ -247,6 +247,10 @@ def get_fix_recommendation(vulnerability, message):
             PROCEDURE DIVISION.
                 CALL "SAFE-PROGRAM"
             """
+        ),
+        "Custom Rule Violation": (
+            "Review the custom rule definition and apply the recommended fix.",
+            ""
         )
     }
 
@@ -939,119 +943,138 @@ def analyze_file(file_path, custom_rules=None):
         vulnerability = "Custom Rule Violation"
         severity_match = re.search(r"Severity: (\w+)", issue)
         severity = severity_match.group(1) if severity_match else "Medium"
-        fix, fix_example = get 🙂
+        fix, fix_example = get_fix_recommendation(vulnerability, issue)
+        exploitability_score = 4  # Moderate impact for custom rules
+        finding = {
+            "file": file_path,
+            "vulnerability": vulnerability,
+            "message": issue,
+            "severity": severity,
+            "line": 0,
+            "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+            "code_snippet": code_snippet,
+            "fix": fix,
+            "fix_example": fix_example,
+            "cvss_score": 0.0,
+            "exploitability_score": exploitability_score
+        }
+        findings.append(finding)
 
-        def scan_vulnerabilities(path, quiet=False, custom_rules=None):
-            """Check COBOL files for common vulnerabilities with parallel and incremental scanning."""
-            findings = []
-            file_hashes = load_file_hashes()
-            files_to_scan = []
+    return findings
 
-            # Collect files to scan and check for changes
-            if os.path.isdir(path):
-                for root, _, files in os.walk(path):
-                    for file in files:
-                        if file.endswith(".cbl"):
-                            file_path = os.path.join(root, file)
-                            current_hash = compute_file_hash(file_path)
-                            if file_path not in file_hashes or file_hashes[file_path] != current_hash:
-                                files_to_scan.append((file_path, custom_rules))
-                                file_hashes[file_path] = current_hash
-            elif os.path.isfile(path):
-                if path.endswith(".cbl"):
-                    current_hash = compute_file_hash(path)
-                    if path not in file_hashes or file_hashes[path] != current_hash:
-                        files_to_scan.append((path, custom_rules))
-                        file_hashes[path] = current_hash
-                else:
-                    if not quiet:
-                        console.print(f"[bold red][Error] {path} is not a .cbl file.[/bold red]")
-            else:
-                if not quiet:
-                    console.print(f"[bold red][Error] {path} is not a valid file or directory.[/bold red]")
 
-            # Save updated hashes
-            save_file_hashes(file_hashes)
+def scan_vulnerabilities(path, quiet=False, custom_rules=None):
+    """Check COBOL files for common vulnerabilities with parallel and incremental scanning."""
+    findings = []
+    file_hashes = load_file_hashes()
+    files_to_scan = []
 
-            # Parallel scanning
-            with Pool() as pool:
-                results = pool.starmap(analyze_file, files_to_scan)
-            for result in results:
-                findings.extend(result)
+    # Collect files to scan and check for changes
+    if os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for file in files:
+                if file.endswith(".cbl"):
+                    file_path = os.path.join(root, file)
+                    current_hash = compute_file_hash(file_path)
+                    if file_path not in file_hashes or file_hashes[file_path] != current_hash:
+                        files_to_scan.append((file_path, custom_rules))
+                        file_hashes[file_path] = current_hash
+    elif os.path.isfile(path):
+        if path.endswith(".cbl"):
+            current_hash = compute_file_hash(path)
+            if path not in file_hashes or file_hashes[path] != current_hash:
+                files_to_scan.append((path, custom_rules))
+                file_hashes[path] = current_hash
+        else:
+            if not quiet:
+                console.print(f"[bold red][Error] {path} is not a .cbl file.[/bold red]")
+    else:
+        if not quiet:
+            console.print(f"[bold red][Error] {path} is not a valid file or directory.[/bold red]")
 
-            return findings
+    # Save updated hashes
+    save_file_hashes(file_hashes)
 
-        def export_results(results, output, format, quiet=False):
-            """Export the scan results to the specified format (JSON/SARIF/HTML)."""
-            if not results:
-                if not quiet:
-                    console.print("[bold yellow][Warning] No results to export.[/bold yellow]")
-                return
+    # Parallel scanning
+    with Pool() as pool:
+        results = pool.starmap(analyze_file, files_to_scan)
+    for result in results:
+        findings.extend(result)
 
-            if format == "json":
-                try:
-                    with open(output, "w") as json_file:
-                        json.dump(results, json_file, indent=4)
-                    if not quiet:
-                        console.print(f"[bold blue][Info] Results exported to {output} in JSON format.[/bold blue]")
-                except IOError as e:
-                    console.print(f"[bold red][Error] Failed to write JSON file: {str(e)}[/bold red]")
+    return findings
 
-            elif format == "sarif":
-                sarif_results = {
-                    "version": "2.1.0",
-                    "runs": [{
-                        "tool": {
-                            "driver": {
-                                "name": "cobra",
-                                "version": "1.0"
-                            }
-                        },
-                        "results": [{
-                            "ruleId": result.get("vulnerability", "Unknown"),
-                            "level": result.get("severity", "warning").lower(),
-                            "message": {
-                                "text": result.get("message", "No details")
+
+def export_results(results, output, format, quiet=False):
+    """Export the scan results to the specified format (JSON/SARIF/HTML)."""
+    if not results:
+        if not quiet:
+            console.print("[bold yellow][Warning] No results to export.[/bold yellow]")
+        return
+
+    if format == "json":
+        try:
+            with open(output, "w") as json_file:
+                json.dump(results, json_file, indent=4)
+            if not quiet:
+                console.print(f"[bold blue][Info] Results exported to {output} in JSON format.[/bold blue]")
+        except IOError as e:
+            console.print(f"[bold red][Error] Failed to write JSON file: {str(e)}[/bold red]")
+
+    elif format == "sarif":
+        sarif_results = {
+            "version": "2.1.0",
+            "runs": [{
+                "tool": {
+                    "driver": {
+                        "name": "cobra",
+                        "version": "1.0"
+                    }
+                },
+                "results": [{
+                    "ruleId": result.get("vulnerability", "Unknown"),
+                    "level": result.get("severity", "warning").lower(),
+                    "message": {
+                        "text": result.get("message", "No details")
+                    },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": result.get("file", "unknown")
                             },
-                            "locations": [{
-                                "physicalLocation": {
-                                    "artifactLocation": {
-                                        "uri": result.get("file", "unknown")
-                                    },
-                                    "region": {
-                                        "startLine": result.get("line", 1)
-                                    }
-                                }
-                            }],
-                            "properties": {
-                                "uid": result.get("uid", "unknown"),
-                                "code_snippet": result.get("code_snippet", "N/A"),
-                                "cvss_score": result.get("cvss_score", 0.0),
-                                "exploitability_score": result.get("exploitability_score", 0),
-                                "fix": result.get("fix", "No fix available"),
-                                "fix_example": result.get("fix_example", "")
+                            "region": {
+                                "startLine": result.get("line", 1)
                             }
-                        } for result in results]
-                    }]
-                }
+                        }
+                    }],
+                    "properties": {
+                        "uid": result.get("uid", "unknown"),
+                        "code_snippet": result.get("code_snippet", "N/A"),
+                        "cvss_score": result.get("cvss_score", 0.0),
+                        "exploitability_score": result.get("exploitability_score", 0),
+                        "fix": result.get("fix", "No fix available"),
+                        "fix_example": result.get("fix_example", "")
+                    }
+                } for result in results]
+            }]
+        }
 
-                try:
-                    with open(output, "w") as sarif_file:
-                        json.dump(sarif_results, sarif_file, indent=4)
-                    if not quiet:
-                        console.print(f"[bold blue][Info] Results exported to {output} in SARIF format.[/bold blue]")
-                except IOError as e:
-                    console.print(f"[bold red][Error] Failed to write SARIF file: {str(e)}[/bold red]")
+        try:
+            with open(output, "w") as sarif_file:
+                json.dump(sarif_results, sarif_file, indent=4)
+            if not quiet:
+                console.print(f"[bold blue][Info] Results exported to {output} in SARIF format.[/bold blue]")
+        except IOError as e:
+            console.print(f"[bold red][Error] Failed to write SARIF file: {str(e)}[/bold red]")
 
-            elif format == "html":
-                # Count vulnerabilities by severity
-                severity_counts = {"High": 0, "Medium": 0, "Low": 0}
-                for result in results:
-                    severity = result["severity"].capitalize()
-                    if severity in severity_counts:
-                        severity_counts[severity] += 1
+    elif format == "html":
+        # Count vulnerabilities by severity
+        severity_counts = {"High": 0, "Medium": 0, "Low": 0}
+        for result in results:
+            severity = result["severity"].capitalize()
+            if severity in severity_counts:
+                severity_counts[severity] += 1
 
-                html_content = f"""
+        html_content = f"""
         <html>
         <head>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1102,10 +1125,10 @@ def analyze_file(file_path, custom_rules=None):
                 </tr>
         """
 
-                for result in results:
-                    severity = result["severity"].lower()
-                    severity_class = severity
-                    html_content += f"""
+        for result in results:
+            severity = result["severity"].lower()
+            severity_class = severity
+            html_content += f"""
                 <tr>
                     <td>{result['file']}</td>
                     <td>{result['vulnerability']}</td>
@@ -1118,19 +1141,20 @@ def analyze_file(file_path, custom_rules=None):
                 </tr>
             """
 
-                html_content += """
+        html_content += """
             </table>
         </body>
         </html>
         """
 
-                try:
-                    with open(output, "w") as html_file:
-                        html_file.write(html_content)
-                    if not quiet:
-                        console.print(f"[bold blue][Info] Results exported to {output} in HTML format.[/bold blue]")
-                except IOError as e:
-                    console.print(f"[bold red][Error] Failed to write HTML file: {str(e)}[/bold red]")
+        try:
+            with open(output, "w") as html_file:
+                html_file.write(html_content)
+            if not quiet:
+                console.print(f"[bold blue][Info] Results exported to {output} in HTML format.[/bold blue]")
+        except IOError as e:
+            console.print(f"[bold red][Error] Failed to write HTML file: {str(e)}[/bold red]")
 
-        if __name__ == "__main__":
-            cli()
+
+if __name__ == "__main__":
+    cli()
