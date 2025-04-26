@@ -2,13 +2,68 @@ import re
 
 
 def check_for_xss(code):
-    """Check for potential XSS vulnerabilities in COBOL code."""
+    """Check for potential XSS and format string vulnerabilities in COBOL code."""
     issues = []
-    if "DISPLAY" in code.upper():
-        lines = code.split("\n")
-        for i, line in enumerate(lines, 1):
-            if "DISPLAY" in line.upper() and "X'" not in line.upper():
+    lines = code.split("\n")
+
+    # Track variables for reachability analysis
+    variables = {}  # {var_name: [(value, line_num, is_user_input)]}
+
+    # First pass: Track variable assignments and user input
+    for i, line in enumerate(lines, 1):
+        line_upper = line.upper().strip()
+
+        # Track variables assigned via MOVE
+        move_match = re.search(r"MOVE\s+(.+?)\s+TO\s+(\w+)", line_upper)
+        if move_match:
+            value = move_match.group(1).strip()
+            var_name = move_match.group(2).strip()
+            is_user_input = False
+            if '"' in value or "'" in value:
+                value = value.replace('"', '').replace("'", '')
+            else:
+                if value in variables and variables[value][-1][2]:
+                    is_user_input = True
+            if var_name not in variables:
+                variables[var_name] = []
+            variables[var_name].append((value, i, is_user_input))
+
+        # Track variables assigned via ACCEPT (user input)
+        if "ACCEPT" in line_upper:
+            accept_match = re.search(r"ACCEPT\s+(\w+)", line_upper)
+            if accept_match:
+                var_name = accept_match.group(1).strip()
+                if var_name not in variables:
+                    variables[var_name] = []
+                variables[var_name].append(("<user_input>", i, True))
+
+    # Second pass: Analyze DISPLAY statements
+    for i, line in enumerate(lines, 1):
+        line_upper = line.upper().strip()
+        if "DISPLAY" in line_upper:
+            # Check for XSS
+            if "X'" not in line_upper:
                 issues.append(f"Potential XSS: Unsanitized DISPLAY statement at line {i}")
+
+            # Check for format string vulnerabilities
+            display_var_match = re.search(r"DISPLAY\s+(\w+)", line_upper)
+            if display_var_match:
+                var_name = display_var_match.group(1)
+                if var_name in variables:
+                    # Check the last assignment for reachability
+                    last_assignment = variables[var_name][-1]
+                    is_user_input = last_assignment[2]
+                    value = last_assignment[0]
+                    if is_user_input:
+                        # Check for format string patterns
+                        format_patterns = ["%s", "%n", "%x"]
+                        if not value.startswith("<") and any(pattern in value.lower() for pattern in format_patterns):
+                            issues.append(
+                                f"Potential Format String Vulnerability: DISPLAY with user-controlled variable containing format string at line {i}")
+                        else:
+                            issues.append(
+                                f"Potential Format String Vulnerability: DISPLAY with user-controlled variable at line {i}")
+
     return issues
 
 
@@ -23,13 +78,16 @@ def check_for_sql_injection(code):
     return issues
 
 
-def check_for_command_injection(code):
+def check_for_command_injection(code, vuln_programs=None):
     """Check for potential command injection vulnerabilities in COBOL code with improved detection."""
+    if vuln_programs is None:
+        vuln_programs = ["SYSTEM", "EXECUTE", "CMD"]  # Known vulnerable programs
+
     issues = []
     lines = code.split("\n")
 
-    # Track variables and their assignments
-    variables = {}  # {var_name: (value, line_num, is_user_input)}
+    # Track variables for reachability analysis
+    variables = {}  # {var_name: [(value, line_num, is_user_input)]}
 
     # First pass: Track variable assignments and user input
     for i, line in enumerate(lines, 1):
@@ -41,22 +99,23 @@ def check_for_command_injection(code):
             value = move_match.group(1).strip()
             var_name = move_match.group(2).strip()
             is_user_input = False
-            # Check if the value is a literal or variable
             if '"' in value or "'" in value:
-                # Literal value
                 value = value.replace('"', '').replace("'", '')
             else:
-                # Variable or computed value; check if it's user-controlled
-                if value in variables and variables[value][2]:
+                if value in variables and variables[value][-1][2]:
                     is_user_input = True
-            variables[var_name] = (value, i, is_user_input)
+            if var_name not in variables:
+                variables[var_name] = []
+            variables[var_name].append((value, i, is_user_input))
 
         # Track variables assigned via ACCEPT (user input)
         if "ACCEPT" in line_upper:
             accept_match = re.search(r"ACCEPT\s+(\w+)", line_upper)
             if accept_match:
                 var_name = accept_match.group(1).strip()
-                variables[var_name] = ("<user_input>", i, True)
+                if var_name not in variables:
+                    variables[var_name] = []
+                variables[var_name].append(("<user_input>", i, True))
 
     # Second pass: Analyze CALL statements
     for i, line in enumerate(lines, 1):
@@ -65,36 +124,49 @@ def check_for_command_injection(code):
         # Detect dynamic CALL statements
         if "CALL" in line_upper:
             # Extract the program name after CALL
-            call_match = re.search(r"CALL\s+(\w+)", line_upper)
+            call_match = re.search(r"CALL\s+(\w+|\"[^\"]+\"|'[^']+')", line_upper)
             if call_match:
-                prog_var = call_match.group(1).strip()
-                # Check if the program name is a variable (not a literal)
-                if '"' not in line and "'" not in line:
-                    # Check if the variable is tracked
-                    if prog_var in variables:
-                        var_info = variables[prog_var]
-                        source = var_info[0]
-                        is_user_input = var_info[2]
-                        has_injection_pattern = False
+                prog_name = call_match.group(1).strip()
+                is_dynamic = False
+                is_user_input = False
+                has_injection_pattern = False
+                source = None
 
-                        # Check for command injection patterns in the value (if literal)
+                # Check if the program name is a variable (not a literal)
+                if '"' not in prog_name and "'" not in prog_name:
+                    is_dynamic = True
+                    if prog_name in variables:
+                        # Use the last assignment for reachability
+                        last_assignment = variables[prog_name][-1]
+                        source = last_assignment[0]
+                        is_user_input = last_assignment[2]
                         if not source.startswith("<"):
                             has_injection_pattern = any(
                                 pattern in source.lower() for pattern in ["&", "|", ";", "&&", "||"])
+                    else:
+                        source = "untracked_variable"
+                else:
+                    # Literal program name
+                    prog_name = prog_name.replace('"', '').replace("'", '')
+                    source = prog_name
 
-                        # Determine severity and message
+                # Check for insecure dependency usage
+                if any(vuln_prog in prog_name.upper() for vuln_prog in vuln_programs):
+                    issues.append(
+                        f"Potential Insecure Dependency: CALL to known vulnerable program '{prog_name}' at line {i}")
+
+                # Check for command injection if dynamic
+                if is_dynamic:
+                    if prog_name in variables:
                         if is_user_input:
                             severity = "High" if has_injection_pattern else "Medium"
                             issues.append(
                                 f"Potential Command Injection: Dynamic CALL with user-controlled program name at line {i} (Severity: {severity})")
                         else:
-                            # Variable but not user-controlled; check for injection patterns
                             if has_injection_pattern:
                                 issues.append(
                                     f"Potential Command Injection: Program name contains injection pattern in CALL statement at line {i} (Severity: Low)")
-                            # If no user input and no patterns, don't flag (reduces false positives)
                     else:
-                        # Untracked variable; conservatively flag as potential issue
                         issues.append(
                             f"Potential Command Injection: Untracked dynamic program name in CALL statement at line {i} (Severity: Medium)")
 
@@ -130,7 +202,7 @@ def check_for_file_handling_vulnerabilities(code):
     # Track file variables and their line numbers
     file_vars = {}  # {file_var: (line_num, is_dynamic, source)}
     open_files = set()  # Track opened files for resource exhaustion
-    variables = {}  # Track variable assignments {var_name: (value, line_num, is_user_input)}
+    variables = {}  # {var_name: [(value, line_num, is_user_input)]}
 
     # First pass: Track variable assignments and user input
     for i, line in enumerate(lines, 1):
@@ -142,22 +214,23 @@ def check_for_file_handling_vulnerabilities(code):
             value = move_match.group(1).strip()
             var_name = move_match.group(2).strip()
             is_user_input = False
-            # Check if the value is a literal or variable
             if '"' in value or "'" in value:
-                # Literal value
                 value = value.replace('"', '').replace("'", '')
             else:
-                # Variable or computed value; check if it's user-controlled
-                if value in variables and variables[value][2]:
+                if value in variables and variables[value][-1][2]:
                     is_user_input = True
-            variables[var_name] = (value, i, is_user_input)
+            if var_name not in variables:
+                variables[var_name] = []
+            variables[var_name].append((value, i, is_user_input))
 
         # Track variables assigned via ACCEPT (user input)
         if "ACCEPT" in line_upper:
             accept_match = re.search(r"ACCEPT\s+(\w+)", line_upper)
             if accept_match:
                 var_name = accept_match.group(1).strip()
-                variables[var_name] = ("<user_input>", i, True)
+                if var_name not in variables:
+                    variables[var_name] = []
+                variables[var_name].append(("<user_input>", i, True))
 
     # Second pass: Analyze SELECT and file operations
     for i, line in enumerate(lines, 1):
@@ -172,24 +245,20 @@ def check_for_file_handling_vulnerabilities(code):
                 source = "unknown"
                 has_traversal_pattern = False
 
-                # Check if the file name is a variable
                 if file_var in variables:
                     is_dynamic = True
-                    var_info = variables[file_var]
-                    source = var_info[0]
-                    is_user_input = var_info[2]
-                    # Check for path traversal patterns in the value (if literal)
+                    last_assignment = variables[file_var][-1]
+                    source = last_assignment[0]
+                    is_user_input = last_assignment[2]
                     if not source.startswith("<"):
                         has_traversal_pattern = any(
                             pattern in source.lower() for pattern in ["../", "..\\", "/etc/", "\\windows\\"])
-                    # If user input, assume potential for traversal
                     if is_user_input:
                         file_vars[file_var] = (i, True, "user_input")
                         severity = "High" if has_traversal_pattern else "Medium"
                         issues.append(
                             f"Potential File Traversal: Dynamic file name from user input in SELECT statement at line {i} (Severity: {severity})")
                     else:
-                        # Variable but not user-controlled; check for traversal patterns
                         if has_traversal_pattern:
                             file_vars[file_var] = (i, True, source)
                             issues.append(
@@ -197,7 +266,6 @@ def check_for_file_handling_vulnerabilities(code):
                         else:
                             file_vars[file_var] = (i, False, source)
                 else:
-                    # Not a variable we tracked; check if it's a literal with quotes
                     if '"' not in line and "'" not in line:
                         file_vars[file_var] = (i, True, "untracked_variable")
                         issues.append(
@@ -272,6 +340,19 @@ def check_for_arithmetic_overflows(code):
         if "DIVIDE" in line_upper:
             if i > 1 and "IF" not in lines[i - 2].upper() and "NOT = 0" not in lines[i - 2].upper():
                 issues.append(f"Potential Divide-by-Zero: Missing divisor check in DIVIDE statement at line {i}")
+
+    return issues
+
+
+def check_for_buffer_overflows(code):
+    """Check for potential buffer overflows in COBOL string operations."""
+    issues = []
+    lines = code.split("\n")
+
+    for i, line in enumerate(lines, 1):
+        line_upper = line.upper().strip()
+        if ("STRING" in line_upper or "UNSTRING" in line_upper) and "ON OVERFLOW" not in line_upper:
+            issues.append(f"Potential Buffer Overflow: Missing ON OVERFLOW in STRING/UNSTRING at line {i}")
 
     return issues
 

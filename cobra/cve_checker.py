@@ -133,20 +133,64 @@ def fetch_cves():
         return cve_data
     except Exception as e:
         logging.error(f"Failed to fetch CVE data: {str(e)}")
+        print(f"Failed to fetch CVE data: {str(e)}")
         return load_cached_cves()
 
-def load_cached_cves():
-    """Load cached CVE data if available."""
+def fetch_osv_vulnerabilities():
+    """Fetch vulnerabilities from OSV.dev for COBOL-related issues."""
     try:
+        logging.debug("Fetching vulnerabilities from OSV.dev...")
+        url = "https://api.osv.dev/v1/query"
+        params = {"ecosystem": "COBOL"}
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            vulns = response.json().get("vulns", [])
+            logging.info(f"Fetched {len(vulns)} vulnerabilities from OSV.dev.")
+            return vulns
+        else:
+            logging.warning(f"OSV.dev API returned status code {response.status_code}.")
+            return []
+    except Exception as e:
+        logging.error(f"Failed to fetch OSV data: {str(e)}")
+        print(f"Failed to fetch OSV data: {str(e)}")
+        return []
+
+def load_cached_cves(custom_db_path=None):
+    """Load cached CVEs and optionally merge with a custom database and OSV data."""
+    try:
+        cves = []
+        # Load cached CVEs from NVD
         if os.path.exists(CVE_CACHE_FILE):
             with open(CVE_CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
-            logging.debug(f"Loaded {len(cache_data.get('cves', []))} cached CVEs.")
-            return cache_data.get("cves", [])
-        logging.warning("No CVE cache found.")
-        return []
+            cves.extend(cache_data.get("cves", []))
+            logging.debug(f"Loaded {len(cves)} cached CVEs from {CVE_CACHE_FILE}.")
+        else:
+            logging.warning("No CVE cache found.")
+
+        # Load OSV vulnerabilities
+        osv_vulns = fetch_osv_vulnerabilities()
+        for vuln in osv_vulns:
+            # Map OSV format to CobRA's CVE format for consistency
+            cve_entry = {
+                "id": vuln.get("id", "OSV-" + vuln.get("id", "UNKNOWN")),
+                "keywords": vuln.get("aliases", []),
+                "summary": vuln.get("summary", "No description available"),
+                "cvss_score": float(vuln.get("severity", {}).get("score", "0.0").replace("CVSS_V3_", ""))
+            }
+            cves.append(cve_entry)
+
+        # Load custom vulnerability database if provided
+        if custom_db_path and os.path.exists(custom_db_path):
+            with open(custom_db_path, "r") as f:
+                custom_vulns = json.load(f)
+            cves.extend(custom_vulns)
+            logging.info(f"Loaded {len(custom_vulns)} vulnerabilities from custom database {custom_db_path}.")
+
+        logging.debug(f"Total loaded vulnerabilities: {len(cves)}")
+        return cves
     except Exception as e:
-        logging.error(f"Failed to load cached CVEs: {str(e)}")
+        logging.error(f"Failed to load vulnerabilities: {str(e)}")
         return []
 
 def should_update_cves():
