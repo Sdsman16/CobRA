@@ -11,7 +11,13 @@ from cobra.vuln_checker import (
     check_for_sql_injection,
     check_for_command_injection,
     check_for_insecure_cryptographic_storage,
-    check_for_csrf
+    check_for_csrf,
+    check_for_file_handling_vulnerabilities,
+    check_for_hardcoded_sensitive_data,
+    check_for_arithmetic_overflows,
+    check_for_insecure_data_transmission,
+    check_for_improper_error_handling,
+    check_for_insecure_session_management
 )
 from rich.console import Console
 
@@ -43,6 +49,22 @@ def get_fix_recommendation(vulnerability, message):
         return "Use secure COBOL libraries for encryption (e.g., COBOL SSL extensions) and avoid hardcoded keys."
     elif vulnerability == "CSRF":
         return "Implement CSRF tokens in COBOL web interactions and validate requests on the server side."
+    elif vulnerability == "File Traversal":
+        return "Validate file names in SELECT statements and avoid using user input directly in file paths."
+    elif vulnerability == "Resource Exhaustion":
+        return "Ensure all opened files are properly closed using CLOSE statements to prevent resource leaks."
+    elif vulnerability == "Hardcoded Sensitive Data":
+        return "Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys."
+    elif vulnerability == "Arithmetic Overflow":
+        return "Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully."
+    elif vulnerability == "Divide-by-Zero":
+        return "Add a check for zero divisor before DIVIDE statements to prevent crashes."
+    elif vulnerability == "Insecure Data Transmission":
+        return "Use secure communication protocols like HTTPS or SSL/TLS for data transmission."
+    elif vulnerability == "Improper Error Handling":
+        return "Add ON ERROR or AT END clauses to handle errors properly and avoid displaying sensitive information."
+    elif vulnerability == "Insecure Session Management":
+        return "Use secure, unique session tokens and regenerate them on login/logout to prevent session hijacking."
     return "Review COBOL best practices for secure coding and apply input validation or runtime checks."
 
 def filter_by_severity(results, severity=None, severity_and_lower=None):
@@ -421,6 +443,111 @@ def scan_vulnerabilities(path, quiet=False):
                 "vulnerability": vulnerability,
                 "message": issue,
                 "severity": "Medium",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for File Handling vulnerabilities
+        file_issues = check_for_file_handling_vulnerabilities(code)
+        for issue in file_issues:
+            code_snippet = "N/A"
+            vulnerability = "File Traversal" if "File Traversal" in issue else "Resource Exhaustion"
+            severity = "Medium" if vulnerability == "File Traversal" else "Low"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": severity,
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Hardcoded Sensitive Data
+        hardcoded_issues = check_for_hardcoded_sensitive_data(code)
+        for issue in hardcoded_issues:
+            code_snippet = "N/A"
+            vulnerability = "Hardcoded Sensitive Data"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Arithmetic Overflows
+        arithmetic_issues = check_for_arithmetic_overflows(code)
+        for issue in arithmetic_issues:
+            code_snippet = "N/A"
+            vulnerability = "Arithmetic Overflow" if "Overflow" in issue else "Divide-by-Zero"
+            severity = "Medium" if vulnerability == "Arithmetic Overflow" else "High"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": severity,
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Insecure Data Transmission
+        transmission_issues = check_for_insecure_data_transmission(code)
+        for issue in transmission_issues:
+            code_snippet = "N/A"
+            vulnerability = "Insecure Data Transmission"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "High",
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Improper Error Handling
+        error_handling_issues = check_for_improper_error_handling(code)
+        for issue in error_handling_issues:
+            code_snippet = "N/A"
+            vulnerability = "Improper Error Handling" if "ON ERROR" not in issue else "Information Disclosure"
+            severity = "Medium" if vulnerability == "Information Disclosure" else "Low"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": severity,
+                "line": 0,
+                "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
+                "code_snippet": code_snippet,
+                "fix": get_fix_recommendation(vulnerability, issue)
+            }
+            findings.append(finding)
+
+        # Check for Insecure Session Management
+        session_issues = check_for_insecure_session_management(code)
+        for issue in session_issues:
+            code_snippet = "N/A"
+            vulnerability = "Insecure Session Management"
+            finding = {
+                "file": file_path,
+                "vulnerability": vulnerability,
+                "message": issue,
+                "severity": "High",
                 "line": 0,
                 "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
                 "code_snippet": code_snippet,
