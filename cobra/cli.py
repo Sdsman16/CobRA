@@ -45,7 +45,11 @@ def get_fix_recommendation(vulnerability, message):
     elif vulnerability == "SQL Injection":
         return "Use parameterized queries or EXEC SQL PREPARE for database operations in COBOL to prevent injection."
     elif vulnerability == "Command Injection":
-        return "Avoid dynamic CALL statements with user input; use static CALLs or validate inputs strictly."
+        if "Severity: High" in message:
+            return "User input detected in CALL statement with injection patterns; strictly validate and sanitize input to prevent command injection (e.g., reject '&', '|', ';' sequences)."
+        elif "Severity: Medium" in message:
+            return "User input detected in CALL statement; validate inputs strictly or use static CALLs to prevent potential command injection."
+        return "Avoid dynamic CALL statements with variables that could be manipulated; use static CALLs or validate inputs."
     elif vulnerability == "Insecure Cryptographic Storage":
         return "Use secure COBOL libraries for encryption (e.g., COBOL SSL extensions) and avoid hardcoded keys."
     elif vulnerability == "CSRF":
@@ -407,11 +411,14 @@ def scan_vulnerabilities(path, quiet=False):
         for issue in command_issues:
             code_snippet = "N/A"
             vulnerability = "Command Injection"
+            # Extract severity from the message
+            severity_match = re.search(r"Severity: (\w+)", issue)
+            severity = severity_match.group(1) if severity_match else "Medium"
             finding = {
                 "file": file_path,
                 "vulnerability": vulnerability,
                 "message": issue,
-                "severity": "High",
+                "severity": severity,
                 "line": 0,
                 "uid": generate_uid(file_path, vulnerability, 0, code_snippet),
                 "code_snippet": code_snippet,
@@ -458,7 +465,6 @@ def scan_vulnerabilities(path, quiet=False):
         for issue in file_issues:
             code_snippet = "N/A"
             vulnerability = "File Traversal" if "File Traversal" in issue else "Resource Exhaustion"
-            # Extract severity from the message for File Traversal issues
             severity_match = re.search(r"Severity: (\w+)", issue)
             severity = severity_match.group(1) if severity_match else ("Medium" if vulnerability == "File Traversal" else "Low")
             finding = {
@@ -474,7 +480,7 @@ def scan_vulnerabilities(path, quiet=False):
             findings.append(finding)
 
         # Check for Hardcoded Sensitive Data
-        hardcoded_issues = check_for_hardcoded_sensitive_data(code)
+        hakked_issues = check_for_hardcoded_sensitive_data(code)
         for issue in hardcoded_issues:
             code_snippet = "N/A"
             vulnerability = "Hardcoded Sensitive Data"

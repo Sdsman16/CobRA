@@ -24,12 +24,80 @@ def check_for_sql_injection(code):
 
 
 def check_for_command_injection(code):
-    """Check for potential command injection vulnerabilities in COBOL code."""
+    """Check for potential command injection vulnerabilities in COBOL code with improved detection."""
     issues = []
     lines = code.split("\n")
+
+    # Track variables and their assignments
+    variables = {}  # {var_name: (value, line_num, is_user_input)}
+
+    # First pass: Track variable assignments and user input
     for i, line in enumerate(lines, 1):
-        if "CALL" in line.upper() and '"' not in line and "'" not in line:
-            issues.append(f"Potential Command Injection: Dynamic CALL statement at line {i}")
+        line_upper = line.upper().strip()
+
+        # Track variables assigned via MOVE
+        move_match = re.search(r"MOVE\s+(.+?)\s+TO\s+(\w+)", line_upper)
+        if move_match:
+            value = move_match.group(1).strip()
+            var_name = move_match.group(2).strip()
+            is_user_input = False
+            # Check if the value is a literal or variable
+            if '"' in value or "'" in value:
+                # Literal value
+                value = value.replace('"', '').replace("'", '')
+            else:
+                # Variable or computed value; check if it's user-controlled
+                if value in variables and variables[value][2]:
+                    is_user_input = True
+            variables[var_name] = (value, i, is_user_input)
+
+        # Track variables assigned via ACCEPT (user input)
+        if "ACCEPT" in line_upper:
+            accept_match = re.search(r"ACCEPT\s+(\w+)", line_upper)
+            if accept_match:
+                var_name = accept_match.group(1).strip()
+                variables[var_name] = ("<user_input>", i, True)
+
+    # Second pass: Analyze CALL statements
+    for i, line in enumerate(lines, 1):
+        line_upper = line.upper().strip()
+
+        # Detect dynamic CALL statements
+        if "CALL" in line_upper:
+            # Extract the program name after CALL
+            call_match = re.search(r"CALL\s+(\w+)", line_upper)
+            if call_match:
+                prog_var = call_match.group(1).strip()
+                # Check if the program name is a variable (not a literal)
+                if '"' not in line and "'" not in line:
+                    # Check if the variable is tracked
+                    if prog_var in variables:
+                        var_info = variables[prog_var]
+                        source = var_info[0]
+                        is_user_input = var_info[2]
+                        has_injection_pattern = False
+
+                        # Check for command injection patterns in the value (if literal)
+                        if not source.startswith("<"):
+                            has_injection_pattern = any(
+                                pattern in source.lower() for pattern in ["&", "|", ";", "&&", "||"])
+
+                        # Determine severity and message
+                        if is_user_input:
+                            severity = "High" if has_injection_pattern else "Medium"
+                            issues.append(
+                                f"Potential Command Injection: Dynamic CALL with user-controlled program name at line {i} (Severity: {severity})")
+                        else:
+                            # Variable but not user-controlled; check for injection patterns
+                            if has_injection_pattern:
+                                issues.append(
+                                    f"Potential Command Injection: Program name contains injection pattern in CALL statement at line {i} (Severity: Low)")
+                            # If no user input and no patterns, don't flag (reduces false positives)
+                    else:
+                        # Untracked variable; conservatively flag as potential issue
+                        issues.append(
+                            f"Potential Command Injection: Untracked dynamic program name in CALL statement at line {i} (Severity: Medium)")
+
     return issues
 
 
@@ -255,7 +323,7 @@ def check_for_insecure_session_management(code):
         line_upper = line.upper()
 
         # Detect WORKING-STORAGE SECTION
-        if "WORKING-Storage SECTION" in line_upper:
+        if "WORKING-STORAGE SECTION" in line_upper:
             in_working_storage = True
         elif in_working_storage and "SECTION" in line_upper and "WORKING-STORAGE" not in line_upper:
             in_working_storage = False

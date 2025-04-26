@@ -15,7 +15,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
   - **Insecure Data Transmission**: Identifies network interactions without SSL/HTTPS.
   - **Improper Error Handling**: Detects missing `ON ERROR` or `AT END` clauses and error blocks that might disclose information.
   - **Insecure Session Management**: Finds web-enabled COBOL code lacking secure session tokens.
-  - **Web Vulnerabilities**: Includes XSS, SQL injection, command injection, insecure cryptographic storage, and CSRF in web-enabled COBOL applications.
+  - **Web Vulnerabilities**: Includes XSS, SQL injection, command injection (with enhanced detection for user input and injection patterns), insecure cryptographic storage, and CSRF in web-enabled COBOL applications.
 - **Fix Recommendations**: Provides actionable remediation steps for each detected issue, tailored to COBOL development.
 - **Severity Filtering**: Filter findings by severity (`--severity=<high|medium|low>`) or show severity and lower (`--severity-and-lower=<high|medium|low>`). Filtering applies to both console output and exported results.
 - **Delta Comparison**: Compare current scan results with previous results (`--delta=<path>`) to identify net new vulnerabilities and fail the build if any are found.
@@ -202,6 +202,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys.
   [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
     [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
+  [red]HIGH[/red] (line 70): Potential Command Injection: Dynamic CALL with user-controlled program name (Severity: High). (UID: 3456uvwx..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in CALL statement with injection patterns; strictly validate and sanitize input to prevent command injection (e.g., reject '&', '|', ';' sequences).
 [Info] Found 23 CVE-related issues after severity filtering.
 [Info] Found 23 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 46
@@ -221,7 +223,9 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
   [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
     [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
-  [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
+  [red]HIGH[/red] (line 70): Potential Command Injection: Dynamic CALL with user-controlled program name (Severity: High). (UID: 3456uvwx..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in CALL statement with injection patterns; strictly validate and sanitize input to prevent command injection (e.g., reject '&', '|', ';' sequences).
+  [red]HIGH[/red] (line 80): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
 [Info] Found 23 CVE-related issues after severity filtering.
 [Info] Found 3 vulnerability issues before severity filtering.
@@ -230,8 +234,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Found 2 net new vulnerabilities compared to previous scan.
   [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
     [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
-  [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
-    [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
+  [red]HIGH[/red] (line 70): Potential Command Injection: Dynamic CALL with user-controlled program name (Severity: High). (UID: 3456uvwx..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in CALL statement with injection patterns; strictly validate and sanitize input to prevent command injection (e.g., reject '&', '|', ';' sequences).
 [Error] Found 2 net new vulnerabilities. Breaking the build.
 ```
 
@@ -247,6 +251,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
   [yellow]MEDIUM[/yellow] (line 65): Potential File Traversal: File name contains traversal pattern in SELECT statement at line 65. (UID: 5678qrst..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
+  [yellow]MEDIUM[/yellow] (line 75): Potential Command Injection: Untracked dynamic program name in CALL statement at line 75 (Severity: Medium). (UID: 6789yzab..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in CALL statement; validate inputs strictly or use static CALLs to prevent potential command injection.
   [yellow]MEDIUM[/yellow] (line 80): Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation. (UID: 9012mnop..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully.
 [Info] Found 18 CVE-related issues after severity filtering.
@@ -254,8 +260,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 21
 [Info] Found 1 net new vulnerability compared to previous scan.
-  [yellow]MEDIUM[/yellow] (line 65): Potential File Traversal: File name contains traversal pattern in SELECT statement at line 65. (UID: 5678qrst..., CVSS: 0.0)
-    [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
+  [yellow]MEDIUM[/yellow] (line 75): Potential Command Injection: Untracked dynamic program name in CALL statement at line 75 (Severity: Medium). (UID: 6789yzab..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in CALL statement; validate inputs strictly or use static CALLs to prevent potential command injection.
 [Error] Found 1 net new vulnerability. Breaking the build.
 ```
 
@@ -324,6 +330,17 @@ cobra found no vulnerabilities!
         "code_snippet": "N/A",
         "cvss_score": 0.0,
         "fix": "User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences)."
+    },
+    {
+        "file": "buffer_overflow.cbl",
+        "vulnerability": "Command Injection",
+        "message": "Potential Command Injection: Dynamic CALL with user-controlled program name (Severity: High).",
+        "severity": "High",
+        "line": 0,
+        "uid": "3456uvwx-...",
+        "code_snippet": "N/A",
+        "cvss_score": 0.0,
+        "fix": "User input detected in CALL statement with injection patterns; strictly validate and sanitize input to prevent command injection (e.g., reject '&', '|', ';' sequences)."
     }
 ]
 ```
@@ -412,4 +429,4 @@ CobRA is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Contact
 
-For issues or questions, open an issue on the [GitHub repository](https://github.com/Sdsman16/CobRA).
+For issues or questions, open an issue on the [GitHub repository](
