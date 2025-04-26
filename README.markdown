@@ -9,8 +9,9 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 - **CVE Detection**: Identifies COBOL constructs that may trigger known vulnerabilities (e.g., CVE-2019-14486, CVE-2023-32265) using NVD API data.
 - **Vulnerability Scanning**: Detects COBOL-specific issues (e.g., unvalidated `ACCEPT`, dynamic `CALL`) and web vulnerabilities (e.g., XSS, SQL injection, CSRF).
 - **Fix Recommendations**: Provides actionable remediation steps for each detected issue, tailored to COBOL development.
-- **Severity Filtering**: Filter findings by severity (`--severity <high|medium|low>`) or show severity and lower (`--severity-and-lower <high|medium|low>`). Filtering applies to both console output and exported results.
-- **CI/CD Integration**: Breaks the build in CI/CD pipelines if vulnerabilities are detected, ensuring security issues are addressed early.
+- **Severity Filtering**: Filter findings by severity (`--severity=<high|medium|low>`) or show severity and lower (`--severity-and-lower=<high|medium|low>`). Filtering applies to both console output and exported results.
+- **Delta Comparison**: Compare current scan results with previous results (`--delta=<path>`) to identify net new vulnerabilities and fail the build if any are found.
+- **CI/CD Integration**: Breaks the build in CI/CD pipelines if vulnerabilities or net new vulnerabilities are detected, ensuring security issues are addressed early.
 - **Colorized Output**: Uses `rich` for enhanced console output with color-coded severity levels (e.g., `[red]HIGH[/red]`, `[yellow]MEDIUM[/yellow]`).
 - **Flexible Output**: Generates results in JSON or SARIF formats with detailed findings, including line numbers, severity, CVSS scores, code snippets, and fixes.
 - **Ignore List**: Allows suppression of specific findings via unique IDs (UIDs) stored in `ignore.json`.
@@ -72,25 +73,29 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 
 ## Usage
 
-CobRA supports scanning individual `.cbl` files or directories for CVEs and vulnerabilities, providing detailed findings with fix recommendations. Results include unique IDs (UIDs) for suppression and can fail CI/CD builds if vulnerabilities are detected.
+CobRA supports scanning individual `.cbl` files or directories for CVEs and vulnerabilities, providing detailed findings with fix recommendations. Results include unique IDs (UIDs) for suppression and can fail CI/CD builds if vulnerabilities or net new vulnerabilities are detected.
 
 ### Commands
 
 - **Scan Files or Directories**:
   Scan a COBOL file or directory for CVEs and vulnerabilities:
   ```bash
-  cobra scan path/to/file.cbl --output results.json --format json
+  cobra scan path/to/file.cbl --output=results.json --format=json
   ```
   ```bash
-  cobra scan path/to/directory --verbose --output results.sarif --format sarif
+  cobra scan path/to/directory --verbose --output=results.sarif --format=sarif
   ```
   Filter by severity (e.g., show only high-severity issues):
   ```bash
-  cobra scan path/to/directory --severity high --output results.json --format json
+  cobra scan path/to/directory --severity=high --output=results.json --format=json
   ```
   Show severity and lower (e.g., medium and low-severity issues):
   ```bash
-  cobra scan path/to/directory --severity-and-lower medium --output results.json --format json
+  cobra scan path/to/directory --severity-and-lower=medium --output=results.json --format=json
+  ```
+  Compare with previous results to identify net new vulnerabilities:
+  ```bash
+  cobra scan path/to/directory --delta=previous_results.json --output=results.json --format=json
   ```
 
 - **Update CVE Database**:
@@ -116,20 +121,21 @@ CobRA supports scanning individual `.cbl` files or directories for CVEs and vuln
 
 ### Options for `scan`
 
-- `--output <filename>`: Save results to a file (JSON or SARIF).
-- `--format <json|sarif>`: Output format (default: console).
-- `--line-tolerance <int>`: Line number tolerance for matching ignored findings (default: 10).
+- `--output=<filename>`: Save results to a file (JSON or SARIF).
+- `--format=<json|sarif>`: Output format (default: console).
+- `--line-tolerance=<int>`: Line number tolerance for matching ignored findings (default: 10).
 - `--quiet`: Suppress non-critical console output.
 - `--verbose`: Show detailed debug logs.
 - `--no-update`: Skip automatic CVE database update.
-- `--severity <high|medium|low>`: Show only findings of the specified severity. In CI/CD, breaks the build if any matching vulnerabilities are found.
-- `--severity-and-lower <high|medium|low>`: Show findings of the specified severity and lower (e.g., `--severity-and-lower medium` shows medium and low). In CI/CD, breaks the build if any matching vulnerabilities are found.
+- `--severity=<high|medium|low>`: Show only findings of the specified severity. In CI/CD, breaks the build if any matching vulnerabilities are found (unless `--delta` is used).
+- `--severity-and-lower=<high|medium|low>`: Show findings of the specified severity and lower (e.g., `--severity-and-lower=medium` shows medium and low). In CI/CD, breaks the build if any matching vulnerabilities are found (unless `--delta` is used).
+- `--delta=<path>`: Path to previous scan results for delta comparison. Breaks the build if net new vulnerabilities are found.
 
 ### CI/CD Integration
 
-CobRA can be integrated into CI/CD pipelines to scan COBOL files as a stage and break the build if vulnerabilities are detected. This ensures security issues are addressed before deployment.
+CobRA can be integrated into CI/CD pipelines to scan COBOL files as a stage and break the build if vulnerabilities or net new vulnerabilities are detected. This ensures security issues are addressed before deployment.
 
-#### Example: GitHub Actions Workflow
+#### Example: GitHub Actions Workflow with Delta Comparison
 
 ```yaml
 name: CI/CD Pipeline with CobRA Scan
@@ -160,17 +166,21 @@ jobs:
         pip install -e .
         cobra update-cve-db
 
-    - name: Run CobRA Vulnerability Scan
+    - name: Run CobRA Vulnerability Scan with Delta
       run: |
-        cobra scan "./path/to/cobol/files" --severity high --output results.json --format json
+        # Assumes previous_results.json is available (e.g., from a previous build)
+        cobra scan "./path/to/cobol/files" --severity=high --delta=previous_results.json --output=results.json --format=json
+        # Update previous_results.json for the next run
+        cp results.json previous_results.json
 ```
 
-- If vulnerabilities matching the severity filter (e.g., `--severity high`) are found, the `cobra scan` command exits with a non-zero status code, failing the build.
-- Adjust the `--severity` or `--severity-and-lower` options to control which findings trigger a build failure.
+- If net new vulnerabilities are found compared to `previous_results.json`, the `cobra scan` command exits with a non-zero status code, failing the build.
+- If `--delta` is not used, the build breaks if any vulnerabilities matching the severity filter are found.
+- Adjust the `--severity` or `--severity-and-lower` options to control which findings are considered in the delta comparison.
 
 ### Example Output
 
-#### Without Severity Filter
+#### Without Severity Filter or Delta
 ```
 [Debug] Starting scan_directory
 cobra found 46 issues grouped by file:
@@ -187,7 +197,7 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Error] Found 46 vulnerabilities. Breaking the build.
 ```
 
-#### With `--severity high` (in CI/CD)
+#### With `--severity=high` and `--delta=previous_results.json`
 ```
 [Debug] Starting scan_directory
 cobra found 23 issues grouped by file:
@@ -201,10 +211,15 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Found 3 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 23
-[Error] Found 23 vulnerabilities of severity 'HIGH'. Breaking the build.
+[Info] Found 2 net new vulnerabilities compared to previous scan.
+  [red]HIGH[/red] (line 3): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: bab64cc5..., CVSS: 7.5)
+    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 9): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: 5883df6f..., CVSS: 7.5)
+    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+[Error] Found 2 net new vulnerabilities. Breaking the build.
 ```
 
-#### With `--severity-and-lower medium`
+#### With `--severity-and-lower=medium` and `--delta=previous_results.json`
 ```
 [Debug] Starting scan_directory
 cobra found 21 issues grouped by file:
@@ -218,7 +233,28 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Found 3 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 21
-[Error] Found 21 vulnerabilities of severity 'MEDIUM' or lower. Breaking the build.
+[Info] Found 1 net new vulnerability compared to previous scan.
+  [yellow]MEDIUM[/yellow] (line 22): Use of ACCEPT statement (unvalidated input). Consider validating input length. (UID: fd6123aa..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+[Error] Found 1 net new vulnerability. Breaking the build.
+```
+
+#### No New Vulnerabilities with `--delta=previous_results.json`
+```
+[Debug] Starting scan_directory
+cobra found 23 issues grouped by file:
+
+C:\Users\sdson\Downloads\buffer_overflow.cbl
+  [red]HIGH[/red] (line 3): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: bab64cc5..., CVSS: 7.5)
+    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 9): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: 5883df6f..., CVSS: 7.5)
+    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+[Info] Found 23 CVE-related issues after severity filtering.
+[Info] Found 3 vulnerability issues before severity filtering.
+[Info] Total findings before filtering: 26
+[Info] Total findings after severity filtering: 23
+[Info] No net new vulnerabilities found compared to previous scan.
+[Success] Results have been saved to: results.json
 ```
 
 #### No Vulnerabilities Found
@@ -232,7 +268,7 @@ cobra found no vulnerabilities!
 [Success] Results have been saved to: results.json
 ```
 
-### Example JSON Output (with `--severity high`)
+### Example JSON Output (with `--severity=high`)
 
 ```json
 [
@@ -298,7 +334,14 @@ cobra found no vulnerabilities!
 - **CI/CD Build Not Breaking**:
   If the build doesn’t break despite vulnerabilities:
   - Ensure `--severity` or `--severity-and-lower` matches your criteria.
+  - If using `--delta`, ensure the previous results file exists and is accessible.
   - Verify the `cobra scan` command exits with a non-zero status code by checking the pipeline logs.
+
+- **Delta Comparison Issues**:
+  If the `--delta` option doesn’t work as expected:
+  - Ensure the previous results file (e.g., `previous_results.json`) is in JSON format and contains valid scan results.
+  - Check `cobra.log` for errors related to loading the delta file.
+  - Verify the UIDs in the current and previous results to ensure they match for unchanged vulnerabilities.
 
 - **Logs**:
   Check `cobra.log` for debugging:
