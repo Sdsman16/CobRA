@@ -94,6 +94,42 @@ def load_ignored_uids():
             console.print(f"[bold red][Error] Failed to create ignore.json: {str(e)}[/bold red]")
         return {}
 
+def compare_results(current_results, delta_path):
+    """Compare current scan results with previous results to identify net new vulnerabilities."""
+    if not os.path.exists(delta_path):
+        console.print(f"[bold yellow][Warning] Delta results file {delta_path} does not exist. Treating all findings as new.[/bold yellow]")
+        return current_results
+
+    try:
+        with open(delta_path, "r") as f:
+            previous_results = json.load(f)
+    except (IOError, json.JSONDecodeError) as e:
+        console.print(f"[bold red][Error] Failed to load delta results from {delta_path}: {str(e)}. Treating all findings as new.[/bold red]")
+        return current_results
+
+    # Extract UIDs from previous results
+    previous_uids = {result["uid"] for result in previous_results}
+
+    # Identify net new vulnerabilities (present in current but not in previous)
+    new_vulnerabilities = [result for result in current_results if result["uid"] not in previous_uids]
+
+    if new_vulnerabilities and not previous_results:
+        console.print(f"[bold yellow][Info] No previous vulnerabilities found in {delta_path}. All {len(new_vulnerabilities)} vulnerabilities are considered new.[/bold yellow]")
+    elif new_vulnerabilities:
+        console.print(f"[bold yellow][Info] Found {len(new_vulnerabilities)} net new vulnerabilities compared to previous scan.[/bold yellow]")
+        for vuln in new_vulnerabilities:
+            severity = vuln["severity"].capitalize()
+            color = "red" if severity == "High" else "yellow" if severity == "Medium" else "white"
+            console.print(
+                f"  [{color}]{severity.upper()}[/{color}] (line {vuln['line']}): {vuln['message']} "
+                f"[cyan](UID: {vuln['uid'][:8]}..., CVSS: {vuln['cvss_score']})[/cyan]"
+            )
+            console.print(f"    [bold green]Fix:[/bold green] {vuln['fix']}")
+    else:
+        console.print("[bold green][Info] No net new vulnerabilities found compared to previous scan.[/bold green]")
+
+    return new_vulnerabilities
+
 @cli.command()
 @click.argument("directory")
 @click.option("--output", type=click.Path(), help="Path to save results.")
@@ -104,7 +140,8 @@ def load_ignored_uids():
 @click.option("--no-update", is_flag=True, help="Skip automatic CVE database update.")
 @click.option("--severity", type=click.Choice(["high", "medium", "low"], case_sensitive=False), help="Show only findings of the specified severity.")
 @click.option("--severity-and-lower", type=click.Choice(["high", "medium", "low"], case_sensitive=False), help="Show findings of the specified severity and lower.")
-def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, severity, severity_and_lower):
+@click.option("--delta", type=click.Path(exists=True), help="Path to previous scan results for delta comparison to identify net new vulnerabilities.")
+def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, severity, severity_and_lower, delta):
     """Scan COBOL files in the provided directory for CVEs and vulnerabilities."""
     # Validate mutually exclusive options
     if severity is not None and severity_and_lower is not None:
@@ -191,8 +228,16 @@ def scan(directory, output, format, line_tolerance, quiet, verbose, no_update, s
         for result in results:
             console.print(result)
 
-    # Check if vulnerabilities were found and break the build if necessary
-    if results:
+    # Compare with previous results if specified
+    new_vulnerabilities = []
+    if delta:
+        new_vulnerabilities = compare_results(results, delta)
+        if new_vulnerabilities:
+            console.print(f"[bold red][Error] Found {len(new_vulnerabilities)} net new vulnerabilities. Breaking the build.[/bold red]")
+            sys.exit(1)  # Exit with non-zero status to break the build
+
+    # Check if total vulnerabilities were found and break the build if necessary
+    if results and not delta:  # Only check total if not doing delta comparison
         if severity is not None:
             console.print(f"[bold red][Error] Found {len(results)} vulnerabilities of severity '{severity.upper()}'. Breaking the build.[/bold red]")
             sys.exit(1)  # Exit with non-zero status to break the build
