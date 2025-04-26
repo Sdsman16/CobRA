@@ -5,7 +5,6 @@ def check_for_xss(code):
     """Check for potential XSS vulnerabilities in COBOL code."""
     issues = []
     if "DISPLAY" in code.upper():
-        # Simplified check: DISPLAY statements with variables might be used in web output
         lines = code.split("\n")
         for i, line in enumerate(lines, 1):
             if "DISPLAY" in line.upper() and "X'" not in line.upper():
@@ -20,7 +19,6 @@ def check_for_sql_injection(code):
         lines = code.split("\n")
         for i, line in enumerate(lines, 1):
             if "EXEC SQL" in line.upper() and ":" in line:
-                # Check for host variables that might contain user input
                 issues.append(f"Potential SQL Injection: Dynamic SQL with host variable at line {i}")
     return issues
 
@@ -31,7 +29,6 @@ def check_for_command_injection(code):
     lines = code.split("\n")
     for i, line in enumerate(lines, 1):
         if "CALL" in line.upper() and '"' not in line and "'" not in line:
-            # Dynamic CALL with a variable program name
             issues.append(f"Potential Command Injection: Dynamic CALL statement at line {i}")
     return issues
 
@@ -58,27 +55,87 @@ def check_for_csrf(code):
 
 
 def check_for_file_handling_vulnerabilities(code):
-    """Check for file handling vulnerabilities in COBOL code."""
+    """Check for file handling vulnerabilities in COBOL code with improved file traversal detection."""
     issues = []
     lines = code.split("\n")
 
-    # Track open files to detect missing CLOSE statements
-    open_files = set()
-    file_vars = {}
+    # Track file variables and their line numbers
+    file_vars = {}  # {file_var: (line_num, is_dynamic, source)}
+    open_files = set()  # Track opened files for resource exhaustion
+    variables = {}  # Track variable assignments {var_name: (value, line_num, is_user_input)}
 
+    # First pass: Track variable assignments and user input
     for i, line in enumerate(lines, 1):
-        line_upper = line.upper()
+        line_upper = line.upper().strip()
+
+        # Track variables assigned via MOVE
+        move_match = re.search(r"MOVE\s+(.+?)\s+TO\s+(\w+)", line_upper)
+        if move_match:
+            value = move_match.group(1).strip()
+            var_name = move_match.group(2).strip()
+            is_user_input = False
+            # Check if the value is a literal or variable
+            if '"' in value or "'" in value:
+                # Literal value
+                value = value.replace('"', '').replace("'", '')
+            else:
+                # Variable or computed value; check if it's user-controlled
+                if value in variables and variables[value][2]:
+                    is_user_input = True
+            variables[var_name] = (value, i, is_user_input)
+
+        # Track variables assigned via ACCEPT (user input)
+        if "ACCEPT" in line_upper:
+            accept_match = re.search(r"ACCEPT\s+(\w+)", line_upper)
+            if accept_match:
+                var_name = accept_match.group(1).strip()
+                variables[var_name] = ("<user_input>", i, True)
+
+    # Second pass: Analyze SELECT and file operations
+    for i, line in enumerate(lines, 1):
+        line_upper = line.upper().strip()
 
         # Detect dynamic file names in SELECT statements
         if "SELECT" in line_upper and "ASSIGN TO" in line_upper:
-            # Extract the file variable name after ASSIGN TO
             match = re.search(r"ASSIGN\s+TO\s+(\w+)", line_upper)
             if match:
-                file_var = match.group(1)
-                file_vars[file_var] = i
-                # Check if the file name is a variable (not a literal)
-                if '"' not in line and "'" not in line:
-                    issues.append(f"Potential File Traversal: Dynamic file name in SELECT statement at line {i}")
+                file_var = match.group(1).strip()
+                is_dynamic = False
+                source = "unknown"
+                has_traversal_pattern = False
+
+                # Check if the file name is a variable
+                if file_var in variables:
+                    is_dynamic = True
+                    var_info = variables[file_var]
+                    source = var_info[0]
+                    is_user_input = var_info[2]
+                    # Check for path traversal patterns in the value (if literal)
+                    if not source.startswith("<"):
+                        has_traversal_pattern = any(
+                            pattern in source.lower() for pattern in ["../", "..\\", "/etc/", "\\windows\\"])
+                    # If user input, assume potential for traversal
+                    if is_user_input:
+                        file_vars[file_var] = (i, True, "user_input")
+                        severity = "High" if has_traversal_pattern else "Medium"
+                        issues.append(
+                            f"Potential File Traversal: Dynamic file name from user input in SELECT statement at line {i} (Severity: {severity})")
+                    else:
+                        # Variable but not user-controlled; check for traversal patterns
+                        if has_traversal_pattern:
+                            file_vars[file_var] = (i, True, source)
+                            issues.append(
+                                f"Potential File Traversal: File name contains traversal pattern in SELECT statement at line {i}")
+                        else:
+                            file_vars[file_var] = (i, False, source)
+                else:
+                    # Not a variable we tracked; check if it's a literal with quotes
+                    if '"' not in line and "'" not in line:
+                        file_vars[file_var] = (i, True, "untracked_variable")
+                        issues.append(
+                            f"Potential File Traversal: Untracked dynamic file name in SELECT statement at line {i}")
+                    else:
+                        file_vars[file_var] = (i, False, "literal")
 
         # Track OPEN statements
         if "OPEN" in line_upper:
@@ -94,9 +151,10 @@ def check_for_file_handling_vulnerabilities(code):
 
     # Report files that were opened but not closed
     for file_var in open_files:
-        line_num = file_vars.get(file_var, "unknown")
-        issues.append(
-            f"Potential Resource Exhaustion: File {file_var} opened but not closed (SELECT at line {line_num})")
+        line_num, is_dynamic, source = file_vars.get(file_var, (None, False, None))
+        if line_num and is_dynamic:
+            issues.append(
+                f"Potential Resource Exhaustion: File {file_var} opened but not closed (SELECT at line {line_num})")
 
     return issues
 
@@ -138,14 +196,12 @@ def check_for_arithmetic_overflows(code):
 
         # Check for arithmetic operations without bounds checking
         if any(op in line_upper for op in ["COMPUTE", "ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"]):
-            # Simplified check: Look for operations without ON SIZE ERROR
             if "ON SIZE ERROR" not in line_upper:
                 issues.append(
                     f"Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation at line {i}")
 
         # Check for divide-by-zero
         if "DIVIDE" in line_upper:
-            # Look for preceding lines to check for zero validation
             if i > 1 and "IF" not in lines[i - 2].upper() and "NOT = 0" not in lines[i - 2].upper():
                 issues.append(f"Potential Divide-by-Zero: Missing divisor check in DIVIDE statement at line {i}")
 
@@ -199,7 +255,7 @@ def check_for_insecure_session_management(code):
         line_upper = line.upper()
 
         # Detect WORKING-STORAGE SECTION
-        if "WORKING-STORAGE SECTION" in line_upper:
+        if "WORKING-Storage SECTION" in line_upper:
             in_working_storage = True
         elif in_working_storage and "SECTION" in line_upper and "WORKING-STORAGE" not in line_upper:
             in_working_storage = False

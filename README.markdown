@@ -9,7 +9,7 @@ CobRA is a Python-based static analysis tool designed to identify vulnerabilitie
 - **CVE Detection**: Identifies COBOL constructs that may trigger known vulnerabilities (e.g., CVE-2019-14486, CVE-2023-32265) using NVD API data.
 - **Vulnerability Scanning**: Detects a wide range of COBOL-specific and web-related vulnerabilities:
   - **Unvalidated Input**: Identifies `ACCEPT` statements without input validation.
-  - **File Handling Issues**: Detects dynamic file names in `SELECT` statements (potential file traversal) and unclosed files (resource exhaustion).
+  - **File Handling Issues**: Detects dynamic file names in `SELECT` statements for potential file traversal (with enhanced detection for user input and path traversal patterns) and unclosed files (resource exhaustion).
   - **Hardcoded Sensitive Data**: Finds hardcoded credentials, keys, or sensitive data like SSNs in `WORKING-STORAGE SECTION`.
   - **Arithmetic Overflows**: Checks for missing `ON SIZE ERROR` clauses in arithmetic operations and potential divide-by-zero in `DIVIDE` statements.
   - **Insecure Data Transmission**: Identifies network interactions without SSL/HTTPS.
@@ -200,8 +200,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
   [red]HIGH[/red] (line 50): Potential Hardcoded Sensitive Data: Possible credential or sensitive data. (UID: 789abcde..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys.
-  [yellow]MEDIUM[/yellow] (line 60): Potential File Traversal: Dynamic file name in SELECT statement. (UID: 1234efgh..., CVSS: 0.0)
-    [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
+  [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
 [Info] Found 23 CVE-related issues after severity filtering.
 [Info] Found 23 vulnerability issues before severity filtering.
 [Info] Total findings before filtering: 46
@@ -219,6 +219,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
   [red]HIGH[/red] (line 9): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: 5883df6f..., CVSS: 7.5)
     [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
   [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
 [Info] Found 23 CVE-related issues after severity filtering.
@@ -226,8 +228,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 23
 [Info] Found 2 net new vulnerabilities compared to previous scan.
-  [red]HIGH[/red] (line 3): Keyword match for CVE-2019-14486: GnuCOBOL 2.2 buffer overflow in cb_evaluate_expr in cobc/field.c via crafted COBOL source code. (UID: bab64cc5..., CVSS: 7.5)
-    [bold green]Fix:[/bold green] Implement bounds checking on array accesses and use safe COBOL constructs like INSPECT to validate data lengths.
+  [red]HIGH[/red] (line 60): Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High). (UID: 1234efgh..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences).
   [red]HIGH[/red] (line 70): Potential Divide-by-Zero: Missing divisor check in DIVIDE statement. (UID: 4567ijkl..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Add a check for zero divisor before DIVIDE statements to prevent crashes.
 [Error] Found 2 net new vulnerabilities. Breaking the build.
@@ -243,6 +245,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
   [yellow]MEDIUM[/yellow] (line 22): Use of ACCEPT statement (unvalidated input). Consider validating input length. (UID: fd6123aa..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Validate and sanitize user input before using ACCEPT; consider using a validation routine or restricting input length.
+  [yellow]MEDIUM[/yellow] (line 65): Potential File Traversal: File name contains traversal pattern in SELECT statement at line 65. (UID: 5678qrst..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
   [yellow]MEDIUM[/yellow] (line 80): Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation. (UID: 9012mnop..., CVSS: 0.0)
     [bold green]Fix:[/bold green] Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully.
 [Info] Found 18 CVE-related issues after severity filtering.
@@ -250,8 +254,8 @@ C:\Users\sdson\Downloads\buffer_overflow.cbl
 [Info] Total findings before filtering: 26
 [Info] Total findings after severity filtering: 21
 [Info] Found 1 net new vulnerability compared to previous scan.
-  [yellow]MEDIUM[/yellow] (line 80): Potential Arithmetic Overflow: Missing ON SIZE ERROR in arithmetic operation. (UID: 9012mnop..., CVSS: 0.0)
-    [bold green]Fix:[/bold green] Add ON SIZE ERROR clause to arithmetic operations to handle overflows gracefully.
+  [yellow]MEDIUM[/yellow] (line 65): Potential File Traversal: File name contains traversal pattern in SELECT statement at line 65. (UID: 5678qrst..., CVSS: 0.0)
+    [bold green]Fix:[/bold green] Validate file names in SELECT statements and avoid using user input directly in file paths.
 [Error] Found 1 net new vulnerability. Breaking the build.
 ```
 
@@ -309,6 +313,17 @@ cobra found no vulnerabilities!
         "code_snippet": "N/A",
         "cvss_score": 0.0,
         "fix": "Remove hardcoded sensitive data; use environment variables or a secure vault to store credentials and keys."
+    },
+    {
+        "file": "buffer_overflow.cbl",
+        "vulnerability": "File Traversal",
+        "message": "Potential File Traversal: Dynamic file name from user input in SELECT statement (Severity: High).",
+        "severity": "High",
+        "line": 0,
+        "uid": "1234efgh-...",
+        "code_snippet": "N/A",
+        "cvss_score": 0.0,
+        "fix": "User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences)."
     }
 ]
 ```

@@ -3,6 +3,7 @@ import os
 import click
 import logging
 import sys
+import re
 from cobra.scanner import scan_directory
 from cobra.cve_checker import fetch_cves, load_cached_cves, should_update_cves
 from cobra.utils import generate_uid
@@ -50,6 +51,8 @@ def get_fix_recommendation(vulnerability, message):
     elif vulnerability == "CSRF":
         return "Implement CSRF tokens in COBOL web interactions and validate requests on the server side."
     elif vulnerability == "File Traversal":
+        if "Severity: High" in message:
+            return "User input detected in file name; strictly validate and sanitize input to prevent path traversal (e.g., reject '../' sequences)."
         return "Validate file names in SELECT statements and avoid using user input directly in file paths."
     elif vulnerability == "Resource Exhaustion":
         return "Ensure all opened files are properly closed using CLOSE statements to prevent resource leaks."
@@ -455,7 +458,9 @@ def scan_vulnerabilities(path, quiet=False):
         for issue in file_issues:
             code_snippet = "N/A"
             vulnerability = "File Traversal" if "File Traversal" in issue else "Resource Exhaustion"
-            severity = "Medium" if vulnerability == "File Traversal" else "Low"
+            # Extract severity from the message for File Traversal issues
+            severity_match = re.search(r"Severity: (\w+)", issue)
+            severity = severity_match.group(1) if severity_match else ("Medium" if vulnerability == "File Traversal" else "Low")
             finding = {
                 "file": file_path,
                 "vulnerability": vulnerability,
