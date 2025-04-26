@@ -480,7 +480,7 @@ def scan_vulnerabilities(path, quiet=False):
             findings.append(finding)
 
         # Check for Hardcoded Sensitive Data
-        hakked_issues = check_for_hardcoded_sensitive_data(code)
+        hardcoded_issues = check_for_hardcoded_sensitive_data(code)
         for issue in hardcoded_issues:
             code_snippet = "N/A"
             vulnerability = "Hardcoded Sensitive Data"
